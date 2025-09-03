@@ -11,6 +11,7 @@
 #define HEARTBEAT_TIMER     9750
 
 #define SERVER_MAX_CLIENTS  64
+#define SERVER_TCP_PORT     12600
 #define SERVER_UDP_PORT     12613
 
 // actions which the action thread will perform
@@ -170,9 +171,14 @@ BOOL Server(const BOOL startup)
                 serv = NetOpen(NETSOCK_TCP4, TRUE);
                 if((heart >= 0) && (serv >= 0))
                 {
-                    // start heartbeat, let others find ther server
-                    Timer(wnd.handl, HEARTBEAT_TIMER, HEARTBEAT_ELAPSE);
-                    success = NetServer(serv);
+                    if(Database(TRUE) == TRUE)
+                    {
+                        // start heartbeat, let others find ther server
+                        Timer(wnd.handl, HEARTBEAT_TIMER, HEARTBEAT_ELAPSE);
+                        /// TODO - change from NET_IP_HOME to NET_IP_LOCAL when ready to deploy to live environment
+                        NetAddrIPV4(serv, NET_IP_HOME, SERVER_TCP_PORT);
+                        success = NetServer(serv);
+                    }
                 }
             }
         }
@@ -191,6 +197,9 @@ BOOL Server(const BOOL startup)
         ThreadKill(nt, FALSE);
         ThreadKill(at, FALSE);
         QueueKill(&aq);
+
+        // close DB connection
+        Database(FALSE);
         success = TRUE;
     }
 

@@ -5,26 +5,11 @@
 */
 #include "parkit.h"
 
-#define FONT_NAME                   L"Consolas"
-#define FONT_SIZE                   24
-
-#define RATIO_SCREEN                0.96    // divisional value for main screen and info bar
-
-static GPH      gph = {0};
-
-static QUAD     area = {0};
-static QUAD     info = {0};
-
-static INDEX    font = -1;
-
 static KEYBOARD kb = {0};
 
 // static prototypes
 static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 static void Defaults(void);
-static void Draw(void);
-static void DrawInfo(void);
-static void DrawScreen(void);
 static BOOL File(const BOOL load);
 static void Input(void);
 static BOOL Start(void);
@@ -67,11 +52,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_PAINT:
-            if(GphPaint(&gph, hwnd) == TRUE)
-            {
-                Draw();
-                GphPaint(&gph, hwnd);
-            }
+            Draw(hwnd);
             break;
 
         case WM_SYSCOMMAND:
@@ -118,37 +99,6 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 static void Defaults(void)
 {
     app.server = FALSE;
-}
-
-/* draw primary application screen */
-static void Draw(void)
-{
-    DrawInfo();
-    DrawScreen();
-}
-
-/* draw informational text regarding application states */
-static void DrawInfo(void)
-{
-    // clear the background and info bar
-    GphClear(gph, &info, GCOAL);
-
-    /// TODO
-
-    // blit and display
-    GphBlit(gph);
-}
-
-/* draw main application screen with parking lot information */
-static void DrawScreen(void)
-{
-    // clear the background and info bar
-    GphClear(gph, &area, GBLACK);
-
-    /// TODO
-
-    // blit and display
-    GphBlit(gph);
 }
 
 /* attempt to read in or write out system-stored server configuration */
@@ -217,26 +167,13 @@ static BOOL Start(void)
         {
             WindowIcon(wnd.handl, 0, wnd.icon);
 
-            // divide screen into main drawing area and informational bar
-            QuadDivideH(wnd.client, RATIO_SCREEN, &area, &info);
-
-            // create the Windows GDI object
-            if(Gph(wnd.handl, wnd.client, &gph) == TRUE)
+            if(Interface(TRUE) == TRUE)
             {
-                // create primary font for display
-                font = FontGDI(FONT_NAME, FONT_SIZE, FALSE, FALSE, FALSE);
-                if(font >= 0)
-                {
-                    // set the font text and color
-                    GphFont(&gph, font);
-                    GphFontColor(gph, GGRAY, GTRANS);
+                /// TODO - remove this later
+                app.server = TRUE;
 
-                    /// TODO - remove this later
-                    app.server = TRUE;
-
-                    // start up the server/client
-                    success = ((app.server == TRUE) ? Server(TRUE) : Client(TRUE));
-                }
+                // start up the server/client
+                success = ((app.server == TRUE) ? Server(TRUE) : Client(TRUE));
             }
         }
     }
@@ -247,16 +184,6 @@ static BOOL Start(void)
 /* stop application */
 static void Stop(void)
 {
-    // unload all allocated memory from demos
-    FontKillGDI(font);
-
-    // stop GDI side of application
-    GphKill(&gph);
-
-    // shut down app
-    DestroyIcon(wnd.icon);
-    Kill(wnd.handl);
-
     // shut down network operations
     if(app.server == TRUE)
     {
@@ -265,4 +192,12 @@ static void Stop(void)
         Client(FALSE);
     }
     Net(FALSE);
+
+    // shut down app
+    Interface(FALSE);
+    DestroyIcon(wnd.icon);
+    Kill(wnd.handl);
+
+    // save application settings
+    File(FALSE);
 }
