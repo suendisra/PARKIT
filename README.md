@@ -1,4 +1,4 @@
-# PARKIT 0.2.4
+# PARKIT 0.2.7
 
 ### About
 > This is the PARKIT application. It is an application designed to enable management of parking lots.<br />

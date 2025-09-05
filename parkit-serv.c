@@ -5,14 +5,11 @@
 */
 #include "parkit.h"
 
-#define ACTION_WAIT         500
+#define ACTION_WAIT                 500
 
-#define HEARTBEAT_ELAPSE    2500
-#define HEARTBEAT_TIMER     9750
-
-#define SERVER_MAX_CLIENTS  64
-#define SERVER_TCP_PORT     12600
-#define SERVER_UDP_PORT     12613
+#define SERVER_MAX_CLIENTS          64
+#define SERVER_TCP_PORT             12600
+#define SERVER_UDP_PORT             12613
 
 // actions which the action thread will perform
 enum ACTIONTYPE
@@ -39,8 +36,9 @@ static INDEX    nt = -1;
 static NETIDX   heart = -1;
 static NETIDX   serv = -1;
 
-static NETIDX   clients[SERVER_MAX_CLIENTS] = {0};
-static long     count = 0;
+static NETIDX       clients[SERVER_MAX_CLIENTS] = {0};
+static ULONGLONG    clientID[SERVER_MAX_CLIENTS] = {0};
+static long         count = 0;
 
 // static prototypes
 static void ActionProc(const long thread);
@@ -48,6 +46,8 @@ static void ClientAccept(const NETIDX idx);
 static void ClientRead(const NETIDX idx);
 static void ClientClose(const NETIDX idx);
 static void NetworkProc(const long thread);
+static void ProcessPacket(const NETIDX idx, const PACKET *p);
+static BOOL VerifyData(PACKET *p);
 
 /* perform each action on the queue */
 static void ActionProc(const long thread)
@@ -65,6 +65,7 @@ static void ActionProc(const long thread)
                 case ACTION_ACCEPT:
                     // new client was accepted, place into tracking array
                     clients[count] = a.idx;
+                    clientID[count] = a.pack.hdr.clientID;
                     count++;
                     break;
 
@@ -75,7 +76,7 @@ static void ActionProc(const long thread)
 
                 case ACTION_READ:
                     // process the data read from client
-                    /// TODO
+                    ProcessPacket(a.idx, &a.pack);
                     break;
             }
         }
@@ -99,23 +100,6 @@ static void ClientAccept(const NETIDX idx)
     }
 }
 
-/* read from the client */
-static void ClientRead(const NETIDX idx)
-{
-    ACTION  a = {0};
-    PACKET  pack = {0};
-
-    // receive the data from the client
-    if(NetRecv(idx, &pack, sizeof(pack)) == TRUE)
-    {
-        // data read in, push into action queue for processing
-        MemCopy(&a.pack, &pack, sizeof(a.pack));
-        a.action = ACTION_READ;
-        a.idx = idx;
-        QueuePush(&a, &aq);
-    }
-}
-
 /* client closed */
 static void ClientClose(const NETIDX idx)
 {
@@ -127,6 +111,26 @@ static void ClientClose(const NETIDX idx)
         a.action = ACTION_CLOSE;
         a.idx = idx;
         QueuePush(&a, &aq);
+    }
+}
+
+/* read from the client */
+static void ClientRead(const NETIDX idx)
+{
+    ACTION  a = {0};
+    PACKET  pack = {0};
+
+    // receive the data from the client
+    if(NetRecv(idx, &pack, sizeof(pack)) == TRUE)
+    {
+        if(VerifyData(&pack) == TRUE)
+        {
+            // data read in, push into action queue for processing
+            MemCopy(&a.pack, &pack, sizeof(a.pack));
+            a.action = ACTION_READ;
+            a.idx = idx;
+            QueuePush(&a, &aq);
+        }
     }
 }
 
@@ -146,6 +150,12 @@ static void NetworkProc(const long thread)
     {
         NetEvent(serv, ClientAccept, NULL, ClientRead, NULL, ClientClose);
     }
+}
+
+/* based off of packet contents, perform requested operations */
+static void ProcessPacket(const NETIDX idx, const PACKET *p)
+{
+    /// TODO
 }
 
 /* start application as a server */
@@ -174,7 +184,7 @@ BOOL Server(const BOOL startup)
                     if(Database(TRUE) == TRUE)
                     {
                         // start heartbeat, let others find ther server
-                        Timer(wnd.handl, HEARTBEAT_TIMER, HEARTBEAT_ELAPSE);
+                        Timer(wnd.handl, TIMER_HEARTBEAT_PULSE, TIMER_HEARTBEAT_ELAPSE);
                         /// TODO - change from NET_IP_HOME to NET_IP_LOCAL when ready to deploy to live environment
                         NetAddrIPV4(serv, NET_IP_HOME, SERVER_TCP_PORT);
                         success = NetServer(serv);
@@ -204,4 +214,15 @@ BOOL Server(const BOOL startup)
     }
 
     return(success);
+}
+
+/* ensure data packet is valid and from trusted source */
+static BOOL VerifyData(const PACKET *p)
+{
+    BOOL    verified = FALSE;
+
+    /// TODO
+    verified = TRUE;
+
+    return(verified);
 }

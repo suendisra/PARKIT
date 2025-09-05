@@ -9,20 +9,23 @@
 #define FONT_SIZE                   24
 
 #define INFO_COLS                   8
-#define INFO_CLIENT                 L""
+#define INFO_CLIENT                 L" | | | | | |[M]ODE |SRV(%ld)|"
 #define INFO_ROWS                   1
-#define INFO_SERVER                 L" | | | | | | |DB(%ld)|"
+#define INFO_SERVER                 L" | | | | | |[M]ODE |DB(%ld)|"
+
+#define RATIO_SCREEN                0.96    // divisional value for main screen and info bar
 
 #define SCREEN_COLS                 8
 #define SCREEN_ROUND                10
-#define SCREEN_ROWS                 12
+#define SCREEN_ROWS                 8
 
-#define RATIO_SCREEN                0.96    // divisional value for main screen and info bar
+#define SPOT_INFO                   L"%ld-%03ld"
 
 static GPH      gph = {0};
 static GRID     screen = {0};
 static GRID     info = {0};
 static INDEX    font = -1;
+static CLRPOOL  scolor = {0};
 
 // static prototypes
 static void DrawInfo(void);
@@ -51,7 +54,7 @@ static void DrawInfo(void)
     {
         StrFormat(temp, sizeof(temp), INFO_SERVER, app.server);
     }else{
-        /// TODO
+        StrFormat(temp, sizeof(temp), INFO_CLIENT, app.connected);
     }
     CharReplace(temp, sizeof(temp), CHARPIPE, CHARNULL);
     GphList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);
@@ -60,21 +63,37 @@ static void DrawInfo(void)
     GphBlit(gph);
 }
 
+/* draw contents of each parking spot in the  */
+static BOOL DrawParkingSpot(const QUAD cell, const long index)
+{
+    SPOT    spot = {0};
+    long    idx = 0;
+
+    // retrieve information regarding this spot
+    if(SpotInfo(index, &spot) == TRUE)
+    {
+        // draw a border for this parking lot spot
+        idx += (spot.empty < 1);
+        idx += (spot.overriden < 2);
+        idx += (spot.reserved < 3);
+        idx += (spot.expired < 4);
+        GphStock(gph, scolor.color[idx], GGRAY);
+        GphText(gph, &cell, ALIGN_CENTER2D, SPOT_INFO, spot.level, spot.spot);
+    }else{
+        // no information, draw empty spot
+        GphStock(gph, GTRANS, GGRAY);
+    }
+
+    GphRect(gph, cell, SCREEN_ROUND);
+    return(TRUE);
+}
+
 /* draw main application screen with parking lot information */
 static void DrawScreen(void)
 {
-    wchar_t temp[STR_XLARGE] = {0};
-
     // clear the background and info bar
     GphClear(gph, &screen.dims, GBLACK);
-
-    // build the list of lots in the parking lot (show empty spots when none are present)
-    /// TODO
-
-    GphTiles(screen, NULL, SCREEN_ROUND, ALIGN_CENTER2D, temp);
-    /// TODO
-
-    // blit and display
+    GridFunc(screen, DrawParkingSpot);
     GphBlit(gph);
 }
 
@@ -100,11 +119,12 @@ BOOL Interface(const BOOL start)
                 GphFont(&gph, font);
                 GphFontColor(gph, GGRAY, GTRANS);
 
-                // create a grid for the screen and for textual information
+                // create a grid for the textual information
                 Grid(&gph, &dims[0], SCREEN_ROWS, SCREEN_COLS, HEADER_NONE, &screen);
                 Grid(&gph, &dims[1], INFO_ROWS, INFO_COLS, HEADER_NONE, &info);
 
-                // call it good to go
+                // set up colors for quick and easy understanding of parking spot status
+                PoolDefault(&scolor);
                 success = TRUE;
             }
         }

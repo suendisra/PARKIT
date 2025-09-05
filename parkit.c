@@ -70,9 +70,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_TIMER:
-            if(app.server == TRUE)
+            switch(LOWORD(wp))
             {
-                Heartbeat();
+                case TIMER_HEARTBEAT_PULSE:
+                    if(app.server == TRUE)
+                    {
+                        Heartbeat();
+                    }
+                    break;
             }
             break;
 
@@ -98,7 +103,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 /* set up standard client-side defaults */
 static void Defaults(void)
 {
-    app.server = FALSE;
+    MemClear(&app, sizeof(app));
 }
 
 /* attempt to read in or write out system-stored server configuration */
@@ -133,6 +138,16 @@ static BOOL File(const BOOL load)
 static void Input(void)
 {
     BOOL    input = FALSE;
+
+    // allow user to change mode (client<->server) if desired
+    if(kb.up['M'] == TRUE)
+    {
+        // warn user that this shouldn't be done unless you're the network engineer
+        /// TODO
+
+        // wants to proceed, so do so
+        /// TODO
+    }
 
     // allow the user to exit the application just from Esc or 'X'
     if((kb.up['X'] == TRUE) || (kb.up[VK_ESCAPE] == TRUE))
@@ -169,11 +184,10 @@ static BOOL Start(void)
 
             if(Interface(TRUE) == TRUE)
             {
-                /// TODO - remove this later
-                app.server = TRUE;
-
                 // start up the server/client
-                success = ((app.server == TRUE) ? Server(TRUE) : Client(TRUE));
+                // note that server will also behave like a client
+                success = ((app.server == TRUE) ? Server(TRUE) : TRUE);
+                success &= Client(TRUE);
             }
         }
     }
@@ -185,11 +199,10 @@ static BOOL Start(void)
 static void Stop(void)
 {
     // shut down network operations
+    Client(FALSE);
     if(app.server == TRUE)
     {
         Server(FALSE);
-    }else{
-        Client(FALSE);
     }
     Net(FALSE);
 
