@@ -8,7 +8,6 @@
 #define SQL_DB_CATALOG  L"parkit"
 #define SQL_DB_TABLE    L"lot-status"
 
-static WNDW     sqldlg = {0};
 static SQLIDX   sql = -1;
 
 // static prototypes
@@ -24,9 +23,9 @@ BOOL Database(const BOOL standup)
         // if database connection hasn't been configured, prompt user to configure it
         if(app.db.inst[0] == CHARNULL)
         {
-            if(Dialog(SqlConfigProc, IDD_SQL_CONFIG, wnd.handl, &sqldlg) == TRUE)
+            if(Dialog(SqlConfigProc, IDD_SQL_CONFIG, wnd.handl, &dlg) == TRUE)
             {
-                Loop(&sqldlg);
+                Loop(&dlg);
             }
         }
 

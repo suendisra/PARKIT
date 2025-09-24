@@ -9,7 +9,6 @@
 
 #define SERVER_MAX_CLIENTS          64
 #define SERVER_TCP_PORT             12600
-#define SERVER_UDP_PORT             12613
 
 // actions which the action thread will perform
 enum ACTIONTYPE
@@ -29,12 +28,13 @@ typedef struct
     PACKET          pack;
 }ACTION;
 
-static QUEUE    aq = {0};
-static INDEX    at = -1;
-static INDEX    nt = -1;
+static QUEUE        aq = {0};
+static INDEX        at = -1;
+static INDEX        nt = -1;
 
-static NETIDX   heart = -1;
-static NETIDX   serv = -1;
+static NETIDX       heart = -1;
+static NETIDX       serv = -1;
+static long         port = -1;
 
 static NETIDX       clients[SERVER_MAX_CLIENTS] = {0};
 static ULONGLONG    clientID[SERVER_MAX_CLIENTS] = {0};
@@ -47,7 +47,9 @@ static void ClientRead(const NETIDX idx);
 static void ClientClose(const NETIDX idx);
 static void NetworkProc(const long thread);
 static void ProcessPacket(const NETIDX idx, const PACKET *p);
-static BOOL VerifyData(PACKET *p);
+static BOOL ServerConfig(void);
+static INT_PTR CALLBACK ServConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
+static BOOL VerifyData(const PACKET *p);
 
 /* perform each action on the queue */
 static void ActionProc(const long thread)
@@ -135,12 +137,12 @@ static void ClientRead(const NETIDX idx)
 }
 
 /* send out UDP discovery information */
-void Heartbeat(void)
+void DiscoverMe(void)
 {
     wchar_t msg[STR_SMALL] = {0};
 
     StrFormat(msg, sizeof(msg), L"%s%s", APP_TITLE, APP_VERSION);
-    NetCastUDP(heart, SERVER_UDP_PORT, msg, sizeof(msg));
+    NetCastUDP(heart, msg, sizeof(msg));
 }
 
 /* handle each network event that occurs */
@@ -181,13 +183,10 @@ BOOL Server(const BOOL startup)
                 serv = NetOpen(NETSOCK_TCP4, TRUE);
                 if((heart >= 0) && (serv >= 0))
                 {
-                    if(Database(TRUE) == TRUE)
+                    // prompt user for desired server configuration
+                    if(ServerConfig() == TRUE)
                     {
-                        // start heartbeat, let others find ther server
-                        Timer(wnd.handl, TIMER_HEARTBEAT_PULSE, TIMER_HEARTBEAT_ELAPSE);
-                        /// TODO - change from NET_IP_HOME to NET_IP_LOCAL when ready to deploy to live environment
-                        NetAddrIPV4(serv, NET_IP_HOME, SERVER_TCP_PORT);
-                        success = NetServer(serv);
+                        success = Database(TRUE);
                     }
                 }
             }
@@ -214,6 +213,102 @@ BOOL Server(const BOOL startup)
     }
 
     return(success);
+}
+
+/* set up connection to the sql db server */
+static BOOL ServerConfig(void)
+{
+    BOOL    success = FALSE;
+
+    // if server discovery udp port and client tcp port numbers haven't been configured, prompt user to configure it
+    if(app.port == 0)
+    {
+        // randomize suggested TCP port for server configuration
+        port = (long)Random(NET_MIN_IPV_PORT, NET_MAX_IPV_PORT);
+        NetAddrLocal(serv, 0, port);
+
+        // run the server configuration dialog window
+        MemClear(&dlg, sizeof(dlg));
+        if(Dialog(ServConfigProc, IDD_SERVER_CONFIG, wnd.handl, &dlg) == TRUE)
+        {
+            Loop(&dlg);
+        }
+    }
+
+    // attempt connection with given (or stored) parameters
+    if(app.port > 0)
+    {
+        // start heartbeat, let others find ther server
+        Timer(wnd.handl, TIMER_HEARTBEAT_PULSE, TIMER_HEARTBEAT_ELAPSE);
+        if(NetServer(serv) == TRUE)
+        {
+            success = TRUE;
+        }else{
+            // TODO - instruct user to TRY AGAIN
+            MemClear(&app.port, sizeof(app.port));
+        }
+    }
+
+    return(success);
+}
+
+/**
+  @fn           static INT_PTR CALLBACK ServConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+  @brief        Main window procedure
+  @param[in]    hwnd handle to window whose proc is being processed
+  @param[in]    msg windows message to be processed
+  @param[in]    wp wparam associated with the message
+  @param[in]    lp lparam associated with the message
+  @return       system return value
+*/
+static INT_PTR CALLBACK ServConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    long    rval = 0;
+    wchar_t temp[STR_NORM] = {0};
+
+    switch(msg)
+    {
+        case WM_INITDIALOG:
+            // center on main window
+            Center(hwnd, 0, NULL);
+
+            // set in server discovery and connection port parameters
+            NetIP(serv, temp, sizeof(temp), NULL);
+            TextSet(hwnd, IDC_SERV_IP, L"%s", temp);
+            TextSet(hwnd, IDC_SERV_TCP_PORT, L"%ld", port);
+            break;
+
+        case WM_SYSCOMMAND:
+            switch(LOWORD(wp))
+            {
+                case SC_CLOSE:
+                case SC_DEFAULT:
+                    Kill(hwnd);
+                    break;
+
+                default:
+                    rval = DefWindowProc(hwnd, msg, wp, lp);
+                    break;
+            }
+            break;
+
+        case WM_COMMAND:
+            switch(LOWORD(wp))
+            {
+                case IDOK:
+                    // pull out the configuration values and allow connection attempt
+                    TextGet(hwnd, IDC_SERV_TCP_PORT, temp, sizeof(temp));
+                    Convert(CONVERT_STR_LNG, &app.port, temp, sizeof(app.port));
+
+                    // intentional fall-through to close window
+                case IDCANCEL:
+                    SendMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+                    break;
+            }
+            break;
+    }
+
+    return(rval);
 }
 
 /* ensure data packet is valid and from trusted source */

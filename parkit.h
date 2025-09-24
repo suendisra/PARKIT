@@ -79,11 +79,14 @@ struct
         wchar_t user[STR_NORM];
     }db;
 
+    USHORT  port;
+
     BOOL    server;
     BOOL    connected;
 }app;
 
 WNDW    wnd;
+WNDW    dlg;
 
 /**
   @fn               BOOL Database(const BOOL standup)
@@ -104,7 +107,7 @@ void Draw(const HWND parent);
   @fn               void Heartbeat(void)
   @brief            send out UDP broadcast for clients to discover and connect
 */
-void Heartbeat(void);
+void DiscoverMe(void);
 
 /**
   @fn               BOOL StartClient(const BOOL startup)

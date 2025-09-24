@@ -75,7 +75,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 case TIMER_HEARTBEAT_PULSE:
                     if(app.server == TRUE)
                     {
-                        Heartbeat();
+                        DiscoverMe();
                     }
                     break;
             }
@@ -181,6 +181,9 @@ static BOOL Start(void)
         if(Resource(RSC_TYPE_ICO, IDI_PARKIT, &wnd.icon, sizeof(wnd.icon)) == TRUE)
         {
             WindowIcon(wnd.handl, 0, wnd.icon);
+
+            // TODO - remove later
+            app.server = TRUE;
 
             if(Interface(TRUE) == TRUE)
             {
