@@ -50,11 +50,11 @@ static void DrawInfo(void)
     // clear the background and info bar
     GphClear(gph, &info.dims, GCOAL);
 
-    if(app.server == TRUE)
+    if(app.net.server == TRUE)
     {
-        StrFormat(temp, sizeof(temp), INFO_SERVER, app.server);
+        StrFormat(temp, sizeof(temp), INFO_SERVER, app.net.server);
     }else{
-        StrFormat(temp, sizeof(temp), INFO_CLIENT, app.connected);
+        StrFormat(temp, sizeof(temp), INFO_CLIENT, app.net.connected);
     }
     CharReplace(temp, sizeof(temp), CHARPIPE, CHARNULL);
     GphList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);

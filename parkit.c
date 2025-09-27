@@ -72,11 +72,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         case WM_TIMER:
             switch(LOWORD(wp))
             {
-                case TIMER_HEARTBEAT_PULSE:
-                    if(app.server == TRUE)
-                    {
-                        DiscoverMe();
-                    }
+                case TIMER_DISCOVERY_PULSE:
+                    DiscoverMe();
                     break;
             }
             break;
@@ -104,6 +101,10 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 static void Defaults(void)
 {
     MemClear(&app, sizeof(app));
+
+    // assign random TCP port with simple increment to UDP port
+    app.net.tcp = (USHORT)Random(NET_MIN_IPV_PORT, NET_MAX_IPV_PORT);
+    app.net.udp = (app.net.tcp + 1);
 }
 
 /* attempt to read in or write out system-stored server configuration */
@@ -167,31 +168,23 @@ static BOOL Start(void)
 {
     BOOL    success = FALSE;
 
-    // start up network operations
-    if(Net(TRUE) == TRUE)
+    // load and set window icon
+    if(Resource(RSC_TYPE_ICO, IDI_PARKIT, &wnd.icon, sizeof(wnd.icon)) == TRUE)
     {
+        WindowIcon(wnd.handl, 0, wnd.icon);
+
         // attempt to load system-stored server configuration data
-        if(File(TRUE) == TRUE)
+        if(File(TRUE) == FALSE)
         {
             // unable to load app data, set defaults
             Defaults();
         }
 
-        // load and set window icon
-        if(Resource(RSC_TYPE_ICO, IDI_PARKIT, &wnd.icon, sizeof(wnd.icon)) == TRUE)
+        // start up network operations
+        if(Network(TRUE) == TRUE)
         {
-            WindowIcon(wnd.handl, 0, wnd.icon);
-
-            // TODO - remove later
-            app.server = TRUE;
-
-            if(Interface(TRUE) == TRUE)
-            {
-                // start up the server/client
-                // note that server will also behave like a client
-                success = ((app.server == TRUE) ? Server(TRUE) : TRUE);
-                success &= Client(TRUE);
-            }
+            // start up GUI
+            success = Interface(TRUE);
         }
     }
 
@@ -202,12 +195,7 @@ static BOOL Start(void)
 static void Stop(void)
 {
     // shut down network operations
-    Client(FALSE);
-    if(app.server == TRUE)
-    {
-        Server(FALSE);
-    }
-    Net(FALSE);
+    Network(FALSE);
 
     // shut down app
     Interface(FALSE);

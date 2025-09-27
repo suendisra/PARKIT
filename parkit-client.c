@@ -12,8 +12,6 @@ static long     scount = 0;
 
 static INDEX    mut = -1;
 static INDEX    net = -1;
-static NETIDX   sock = -1;
-static NETIDX   udp = -1;
 
 // static prototypes
 static void NetworkProc(const long thread);
@@ -23,7 +21,7 @@ static void ServerRead(const NETIDX serv);
 static void UdpRead(const NETIDX serv);
 
 /* start application as a client */
-BOOL Client(const BOOL startup)
+BOOL Client(const BOOL startup, const NETIDX disc, const NETIDX host)
 {
     BOOL    success = FALSE;
 
@@ -34,22 +32,10 @@ BOOL Client(const BOOL startup)
         net = Thread(NetworkProc, NULL);
         if((mut >= 0) && (net >= 0))
         {
-            // open sockets for tcp and udp
-            udp = NetOpen(NETSOCK_UDP, TRUE);
-            sock = NetOpen(NETSOCK_TCP4, TRUE);
-            if((udp >= 0) && (sock >= 0))
-            {
-                // set up UDP listening server to obtain TCP connection information
-                if(NetServer(udp) == TRUE)
-                {
-                    success = TRUE;
-                }
-            }
+            // set up UDP listening server to obtain TCP connection information
+            success = NetServer(disc);
         }
     }else{
-        // stop client network operations
-        NetClose(udp);
-        NetClose(sock);
         MutexKill(mut);
         success = TRUE;
     }
@@ -62,43 +48,51 @@ static void NetworkProc(const long thread)
 {
     if(thread >= 0)
     {
-        NetEvent(udp, NULL, NULL, UdpRead, NULL, NULL);
-        NetEvent(sock, NULL, ServerConnect, ServerRead, NULL, ServerClose);
+        NetEvent(disc, NULL, NULL, UdpRead, NULL, NULL);
+        NetEvent(host, NULL, ServerConnect, ServerRead, NULL, ServerClose);
     }
 }
 
 /* based on current spot information, toggle if spot is overriden */
 void OverrideSpot(const long index)
 {
-    /// TODO
+    if(index >= 0)
+    {
+        /// TODO
+    }
 }
 
 /* prompt client user to give reservation info, then send to server */
 void ReserveSpot(const long index)
 {
-    /// TODO
+    if(index >= 0)
+    {
+        /// TODO
+    }
 }
 
 /* server close its socket, perform clean up */
 static void ServerClose(const NETIDX serv)
 {
     NetClose(serv);
-    app.connected = FALSE;
-    sock = -1;
+    app.net.connected = FALSE;
     Refresh(wnd.handl);
 }
 
 /* asynchronous connection attempt has returned, handle it */
 static void ServerConnect(const NETIDX serv, const long err)
 {
-    if(err == 0)
+    if(serv >= 0)
     {
-        // successful connection
-        app.connected = TRUE;
-        Refresh(wnd.handl);
-    }else{
-        // ran into trouble
-        /// TODO - let user know
+        if(err == 0)
+        {
+            // successful connection
+            app.net.connected = TRUE;
+            Refresh(wnd.handl);
+        }else{
+            // ran into trouble
+            /// TODO - let user know
+        }
     }
 }
 
@@ -106,7 +100,6 @@ static void ServerConnect(const NETIDX serv, const long err)
 static void ServerRead(const NETIDX serv)
 {
     PACKET  pack = {0};
-    void    *ptr = NULL;
 
     if(NetRecv(serv, &pack, sizeof(pack)) == TRUE)
     {
@@ -126,7 +119,7 @@ static void ServerRead(const NETIDX serv)
 }
 
 /* return to caller information regarding the spot identified by the index */
-BOOL SpotInfo(const long index, const SPOT *spot)
+BOOL SpotInfo(const long index, SPOT *spot)
 {
     void    *ptr = NULL;
     BOOL    got = FALSE;
@@ -137,8 +130,8 @@ BOOL SpotInfo(const long index, const SPOT *spot)
         if(MutexLock(mut, MUTEX_WAIT) == TRUE)
         {
             // copy out requested data
-            ptr = (spots + (index * sizeof(SPOT)));
-            MemCopy(spot, ptr, sizeof(SPOT));
+            ptr = (void*)(spots + (index * sizeof(*spot)));
+            MemCopy(spot, ptr, sizeof(*spot));
 
             // release the mutex
             got = TRUE;
@@ -152,7 +145,7 @@ BOOL SpotInfo(const long index, const SPOT *spot)
 /* read in the UDP socket information for connecting to server */
 static void UdpRead(const NETIDX serv)
 {
-    if((serv >= 0) && (app.connected == FALSE))
+    if((serv >= 0) && (app.net.connected == FALSE))
     {
         /// TODO grab necessary data to perform TCP connection
         // attempt connection

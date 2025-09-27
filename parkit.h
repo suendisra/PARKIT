@@ -27,8 +27,10 @@
 #define APP_TITLE                   L"PARKIT"
 #define APP_VERSION                 L"0.2.7"
 
-#define TIMER_HEARTBEAT_ELAPSE      2500
-#define TIMER_HEARTBEAT_PULSE       9750
+#define DISCOVERY_PORT              12600
+
+#define TIMER_DISCOVERY_ELAPSE      2500
+#define TIMER_DISCOVERY_PULSE       9750
 
 // include needed libraries
 #pragma comment(lib, "UTIL.lib")
@@ -74,19 +76,29 @@ struct
 {
     struct
     {
-        wchar_t inst[STR_NORM];
-        wchar_t pwd[STR_NORM];
-        wchar_t user[STR_NORM];
+        wchar_t inst[STR_NORM]; // database instance name
+        wchar_t pwd[STR_NORM];  // password to connect to database
+        wchar_t user[STR_NORM]; // username to connect to database
     }db;
 
-    USHORT  port;
+    struct
+    {
+        USHORT  tcp;            // port number for TCP connections
+        USHORT  udp;            // port number for UDP discovery broadcast
 
-    BOOL    server;
-    BOOL    connected;
+        wchar_t ip[STR_NORM];   // system IP address to use for tcp/udp
+
+        BOOL    server;         // indicates if this device is running as server
+        BOOL    connected;      // indicates if this device, as client, has connected to server
+    }net;
 }app;
 
 WNDW    wnd;
 WNDW    dlg;
+
+// necessary sockets for netowrk connections
+NETIDX  disc;
+NETIDX  host;
 
 /**
   @fn               BOOL Database(const BOOL standup)
@@ -110,7 +122,7 @@ void Draw(const HWND parent);
 void DiscoverMe(void);
 
 /**
-  @fn               BOOL StartClient(const BOOL startup)
+  @fn               BOOL Client(const BOOL startup)
   @brief            start application as a client
   @param[in]        startup if TRUE, start the client, if FALSE, destroy
   @return           TRUE if setup/destruction was successful, FALSE otherwise
@@ -123,6 +135,13 @@ BOOL Client(const BOOL startup);
   @param[in]        start if TRUE, start WinGDI operations, FALSE otherwise
 */
 BOOL Interface(const BOOL start);
+
+/**
+  @fn               BOOL Network(const BOOL start)
+  @brief            initialize or tear down winsock
+  @param[in]        start if TRUE, start winsock operations, FALSE otherwise
+*/
+BOOL Network(const BOOL start);
 
 /**
   @fn               void OverrideSpot(const long index)
@@ -139,7 +158,7 @@ void OverrideSpot(const long index);
 void ReserveSpot(const long index);
 
 /**
-  @fn               BOOL StartServer(const BOOL startup)
+  @fn               BOOL Server(const BOOL startup)
   @brief            start application as a server 
   @param[in]        startup if TRUE, start the server, if FALSE, destroy
   @return           TRUE if setup/destruction was successful, FALSE otherwise
@@ -147,12 +166,12 @@ void ReserveSpot(const long index);
 BOOL Server(const BOOL startup);
 
 /**
-  @fn               BOOL SpotInfo(const long index, const SPOT *spot)
+  @fn               BOOL SpotInfo(const long index, SPOT *spot)
   @brief            return to caller information regarding the spot identified by the index
   @param[in]        index spot identifier for requested spot information
   @param[in out]    spot the information to pass back to caller
   @return           TRUE if information was retrieved, FALSE otherwise
 */
-BOOL SpotInfo(const long index, const SPOT *spot);
+BOOL SpotInfo(const long index, SPOT *spot);
 
 #endif

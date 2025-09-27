@@ -5,8 +5,12 @@
 #define IDI_ICON1                       101
 #define IDI_PARKIT                      101
 #define IDD_SERVER_CONFIG               104
+#define IDD_NETWORK_CONFIG              104
 #define IDD_CONFIG                      105
 #define IDD_SQL_CONFIG                  105
+#define IDC_IP_LIST                     1001
+#define IDC_CHECK1                      1002
+#define IDC_RUN_SERVER                  1002
 #define IDC_INSTANCE                    1006
 #define IDC_CATALOG                     1007
 #define IDC_TABLE                       1008
@@ -20,8 +24,8 @@
 #define IDC_STATIC_PASSWORD             1016
 #define IDC_CSV_PATH                    1017
 #define IDC_STATIC_SQL_CONFIG2          1017
+#define IDC_STATIC_NETWORK_CONFIG       1017
 #define IDC_STATIC_SERV_IP              1022
-#define IDC_SERV_IP                     1023
 #define IDC_STATIC_SERV_UDP_PORT        1024
 #define IDC_SERV_UDP_PORT               1025
 #define IDC_STATIC_SERV_TCP_PORT        1026
@@ -36,7 +40,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        107
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1001
+#define _APS_NEXT_CONTROL_VALUE         1003
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
