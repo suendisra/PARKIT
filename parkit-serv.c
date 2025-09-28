@@ -16,6 +16,7 @@ enum ACTIONTYPE
     ACTION_ACCEPT,
     ACTION_CLOSE,
     ACTION_READ,
+    ACTION_WRITE,
     ACTION_LAST
 };
 
@@ -23,21 +24,14 @@ enum ACTIONTYPE
 typedef struct
 {
     enum ACTIONTYPE action;
-    NETIDX          idx;
+    NETIDX          client;
     PACKET          pack;
 }ACTION;
 
 static QUEUE        aq = {0};
 static INDEX        at = -1;
 static INDEX        nt = -1;
-
-static struct
-{
-    NETIDX       sock;
-    ULONGLONG    id;
-}clients[SERVER_MAX_CLIENTS];
-
-static long ccount = 0;
+static MAP          clients = {0};
 
 // static prototypes
 static void ActionProc(const long thread);
@@ -45,7 +39,10 @@ static void ClientAccept(const NETIDX idx);
 static void ClientRead(const NETIDX idx);
 static void ClientClose(const NETIDX idx);
 static void NetworkProc(const long thread);
-static void ProcessPacket(const NETIDX idx, const PACKET *p);
+static void ProcessAccept(const NETIDX idx, const PACKET *p);
+static void ProcessClose(const NETIDX idx, const PACKET *p);
+static void ProcessRead(const NETIDX idx, const PACKET *p);
+static void ProcessWrite(const NETIDX idx, const PACKET *p);
 static BOOL VerifyData(const PACKET *p);
 
 /* perform each action on the queue */
@@ -63,19 +60,22 @@ static void ActionProc(const long thread)
             {
                 case ACTION_ACCEPT:
                     // new client was accepted, place into tracking array
-                    clients[ccount].sock = a.idx;
-                    clients[ccount].id = a.pack.hdr.clientID;
-                    ccount++;
+                    ProcessAccept(a.client, &a.pack);
                     break;
 
                 case ACTION_CLOSE:
                     // client has closed, remove from tracking array
-                    /// TODO
+                    ProcessClose(a.client, &a.pack);
                     break;
 
                 case ACTION_READ:
                     // process the data read from client
-                    ProcessPacket(a.idx, &a.pack);
+                    ProcessRead(a.client, &a.pack);
+                    break;
+
+                case ACTION_WRITE:
+                    // write data on socket to client
+                    ProcessWrite(a.client, &a.pack);
                     break;
             }
         }
@@ -90,8 +90,8 @@ static void ClientAccept(const NETIDX idx)
     ACTION  a = {0};
 
     // attempt to accept the client
-    a.idx = NetAccept(idx);
-    if(a.idx >= 0)
+    a.client = NetAccept(idx);
+    if(a.client >= 0)
     {
         // accepted, push into action queue to for client tracking
         a.action = ACTION_ACCEPT;
@@ -108,7 +108,7 @@ static void ClientClose(const NETIDX idx)
     if(NetClose(idx) == TRUE)
     {
         a.action = ACTION_CLOSE;
-        a.idx = idx;
+        a.client = idx;
         QueuePush(&a, &aq);
     }
 }
@@ -120,14 +120,14 @@ static void ClientRead(const NETIDX idx)
     PACKET  pack = {0};
 
     // receive the data from the client
-    if(NetRecv(idx, &pack, sizeof(pack)) == TRUE)
+    if(NetRecv(idx, &pack, sizeof(pack), NULL) == TRUE)
     {
         if(VerifyData(&pack) == TRUE)
         {
             // data read in, push into action queue for processing
             MemCopy(&a.pack, &pack, sizeof(a.pack));
             a.action = ACTION_READ;
-            a.idx = idx;
+            a.client = idx;
             QueuePush(&a, &aq);
         }
     }
@@ -151,8 +151,42 @@ static void NetworkProc(const long thread)
     }
 }
 
+/* new client has been accepted by the server, perform handshake */
+static void ProcessAccept(const NETIDX idx, const PACKET *p)
+{
+    if((idx >= 0) && (p != NULL))
+    {
+        // store client socket in map
+        MapPush(&clients, &clients.cc, &idx);
+
+        // send client acceptance letter and inform of incoming data
+        /// TODO
+
+        // poll sql table for each spot info and queue to send to client
+        /// TODO
+    }
+}
+
+/* client closed socket, process clean up */
+static void ProcessClose(const NETIDX idx, const PACKET *p)
+{
+    if((idx >= 0) && (p != NULL))
+    {
+        /// TODO
+    }
+}
+
 /* based off of packet contents, perform requested operations */
-static void ProcessPacket(const NETIDX idx, const PACKET *p)
+static void ProcessRead(const NETIDX idx, const PACKET *p)
+{
+    if((idx >= 0) && (p != NULL))
+    {
+        /// TODO
+    }
+}
+
+/* based off of packet contents, perform requested operations */
+static void ProcessWrite(const NETIDX idx, const PACKET *p)
 {
     if((idx >= 0) && (p != NULL))
     {
@@ -163,8 +197,9 @@ static void ProcessPacket(const NETIDX idx, const PACKET *p)
 /* start application as a server */
 BOOL Server(const BOOL startup)
 {
-    long    n = 0;
-    BOOL    success = FALSE;
+    NETIDX      client = 0;
+    long        n = 0;
+    BOOL        success = FALSE;
 
     if(startup == TRUE)
     {
@@ -186,9 +221,12 @@ BOOL Server(const BOOL startup)
         Timer(wnd.handl, TIMER_DISCOVERY_PULSE, 0);
 
         // close any clients who are connected via TCP
-        for(n = 0; (n < ccount); ++n)
+        for(n = (clients.cc - 1); (n >= 0); --n)
         {
-            NetClose(clients[n].sock);
+            if(MapPop(&clients, &n, &client) == TRUE)
+            {
+                NetClose(client);
+            }
         }
 
         // destroy queue and its consumer thread

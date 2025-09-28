@@ -8,8 +8,9 @@
 #define IDD_NETWORK_CONFIG              104
 #define IDD_CONFIG                      105
 #define IDD_SQL_CONFIG                  105
+#define IDR_TXT1                        107
+#define IDR_PARKIT_PASS                 107
 #define IDC_IP_LIST                     1001
-#define IDC_CHECK1                      1002
 #define IDC_RUN_SERVER                  1002
 #define IDC_INSTANCE                    1006
 #define IDC_CATALOG                     1007
@@ -38,7 +39,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        107
+#define _APS_NEXT_RESOURCE_VALUE        108
 #define _APS_NEXT_COMMAND_VALUE         40001
 #define _APS_NEXT_CONTROL_VALUE         1003
 #define _APS_NEXT_SYMED_VALUE           101

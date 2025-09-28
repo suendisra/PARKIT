@@ -27,9 +27,7 @@
 #define APP_TITLE                   L"PARKIT"
 #define APP_VERSION                 L"0.2.7"
 
-#define DISCOVERY_PORT              12600
-
-#define TIMER_DISCOVERY_ELAPSE      2500
+#define TIMER_DISCOVERY_ELAPSE      5000
 #define TIMER_DISCOVERY_PULSE       9750
 
 // include needed libraries
@@ -38,17 +36,10 @@
 #pragma comment(lib, "NET.lib")
 #pragma comment(lib, "WIN.lib")
 
-// packet header
-typedef struct
-{
-    DATUM       dt;
-    ULONGLONG   clientID;
-}HEADER;
-
 // tcp packet structure
 typedef struct
 {
-    HEADER  hdr;
+    DATUM   dt;
     long    level;
     long    spot;
     BOOL    override;

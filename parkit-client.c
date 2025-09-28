@@ -5,6 +5,7 @@
 */
 #include "parkit.h"
 
+#define ERROR_CONNECT   L"An error was encountered while attempting to connect to server over TCP. Please ensure correct configuration and try again."
 #define MUTEX_WAIT      -1
 
 static SPOT     *spots = NULL;
@@ -21,7 +22,7 @@ static void ServerRead(const NETIDX serv);
 static void UdpRead(const NETIDX serv);
 
 /* start application as a client */
-BOOL Client(const BOOL startup, const NETIDX disc, const NETIDX host)
+BOOL Client(const BOOL startup)
 {
     BOOL    success = FALSE;
 
@@ -71,7 +72,7 @@ void ReserveSpot(const long index)
     }
 }
 
-/* server close its socket, perform clean up */
+/* server closed its socket, perform clean up */
 static void ServerClose(const NETIDX serv)
 {
     NetClose(serv);
@@ -91,7 +92,7 @@ static void ServerConnect(const NETIDX serv, const long err)
             Refresh(wnd.handl);
         }else{
             // ran into trouble
-            /// TODO - let user know
+            Message(MSG_ERR, wnd.handl, L"%s", ERROR_CONNECT);
         }
     }
 }
@@ -101,7 +102,7 @@ static void ServerRead(const NETIDX serv)
 {
     PACKET  pack = {0};
 
-    if(NetRecv(serv, &pack, sizeof(pack)) == TRUE)
+    if(NetRecv(serv, &pack, sizeof(pack), NULL) == TRUE)
     {
         // block until we gain control of the mutex
         if(MutexLock(mut, MUTEX_WAIT) == TRUE)
@@ -130,7 +131,7 @@ BOOL SpotInfo(const long index, SPOT *spot)
         if(MutexLock(mut, MUTEX_WAIT) == TRUE)
         {
             // copy out requested data
-            ptr = (void*)(spots + (index * sizeof(*spot)));
+            ptr = (void*)(((BYTE*)spots) + (index * sizeof(*spot)));
             MemCopy(spot, ptr, sizeof(*spot));
 
             // release the mutex
@@ -145,10 +146,31 @@ BOOL SpotInfo(const long index, SPOT *spot)
 /* read in the UDP socket information for connecting to server */
 static void UdpRead(const NETIDX serv)
 {
+    SOCKADDR_IN from = {0};
+    wchar_t     cmp[STR_NORM] = {0};
+    wchar_t     ip[STR_NORM] = {0};
+    wchar_t     msg[STR_NORM] = {0};
+
     if((serv >= 0) && (app.net.connected == FALSE))
     {
-        /// TODO grab necessary data to perform TCP connection
-        // attempt connection
-        NetConnect(serv);
+        // receive packet from UDP discovery
+        if(NetRecv(serv, msg, sizeof(msg), &from) == TRUE)
+        {
+            // ensure proper version match
+            StrFormat(cmp, sizeof(cmp), L"%s%s", APP_TITLE, APP_VERSION);
+            if(StrCompare(msg, cmp, 0, FALSE) == 0)
+            {
+                // convert address to IP
+                if(InetNtop(AF_INET, &from, ip, (sizeof(ip) / sizeof(ip[0]))) != NULL)
+                {
+                    // attempt to create TCP/IP address for received address
+                    if(NetAddrIP(host, ip, from.sin_port) == TRUE)
+                    {
+                        // attempt connection
+                        NetConnect(serv);
+                    }
+                }
+            }
+        }
     }
 }
