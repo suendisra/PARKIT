@@ -78,6 +78,7 @@ struct
         USHORT  udp;            // port number for UDP discovery broadcast
 
         wchar_t ip[STR_NORM];   // system IP address to use for tcp/udp
+        wchar_t pwd[STR_NORM];  // password to connect to server (supplied by network admin during config)
 
         BOOL    server;         // indicates if this device is running as server
         BOOL    connected;      // indicates if this device, as client, has connected to server

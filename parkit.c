@@ -5,6 +5,9 @@
 */
 #include "parkit.h"
 
+#define KEY_DELIM   L"\n"
+#define KEY_MAX     32
+
 static KEYBOARD kb = {0};
 
 // static prototypes
@@ -12,6 +15,7 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 static void Defaults(void);
 static BOOL File(const BOOL load);
 static void Input(void);
+static void Keys(const BOOL encrypt);
 static BOOL Start(void);
 static void Stop(void);
 
@@ -103,7 +107,7 @@ static void Defaults(void)
     MemClear(&app, sizeof(app));
 
     // assign random TCP port with simple increment to UDP port
-    app.net.tcp = (USHORT)Random(NET_MIN_IPV_PORT, NET_MAX_IPV_PORT);
+    app.net.tcp = (USHORT)Random(NET_MIN_IPV_PORT, (NET_MAX_IPV_PORT - 1));
     app.net.udp = (app.net.tcp + 1);
 }
 
@@ -124,7 +128,9 @@ static BOOL File(const BOOL load)
             if(load == TRUE)
             {
                 success = (FileRead(cf, &app, sizeof(app)) == sizeof(app));
+                Keys(FALSE);
             }else{
+                Keys(TRUE);
                 success = (FileWrite(cf, &app, sizeof(app)) == sizeof(app));
             }
 
@@ -160,6 +166,27 @@ static void Input(void)
     if(input == TRUE)
     {
         SendMessage(wnd.handl, WM_PAINT, 0, 0);
+    }
+}
+
+/* pull in all keys used to encrypt data on disk */
+static void Keys(const BOOL encrypt)
+{
+    long    n = 0;
+    wchar_t  keys[KEY_MAX * STR_NORM] = {0};
+    wchar_t temp[STR_NORM] = {0};
+
+    if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)) == TRUE)
+    {
+        // text file containing data-at-rest passwords has been opened
+        for(n = 0; (n < KEY_MAX); ++n)
+        {
+            // use each key to encrypt or decrypt the app data as appropriate
+            if(StrParse(temp, sizeof(temp), keys, sizeof(keys), KEY_DELIM, ((encrypt == TRUE) ? (n + 1) : (KEY_MAX - n))) == TRUE)
+            {
+                EncryptXOR(&app, sizeof(app), temp, StrLen(temp, sizeof(temp)));
+            }
+        }
     }
 }
 

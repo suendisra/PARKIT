@@ -6,6 +6,8 @@
 #include "parkit.h"
 
 #define CONFIG_ERROR    L"An error was encountered while attempting to stand up network operations. Please adjust network configuration values and try again."
+#define CONFIG_PASSWORD L"The server password for communications must not be empty. Please specify a password."
+#define CONFIG_PORTS    L"One or both of the ports given are invalid. Please specify ports in the range of (%ld, %ld)."
 
 // static prototypes
 static void ListIP(const INDEX idx, const wchar_t *ip);
@@ -38,18 +40,18 @@ BOOL Network(const BOOL start)
             if((disc >= 0) && (host >= 0))
             {
                 // if bad ports or IP address, prompt for network configuration
-                if((app.net.tcp == 0) || (app.net.udp == 0) || (app.net.ip[0] == CHARNULL))
+                if((app.net.tcp == 0) || (app.net.udp == 0) || (app.net.pwd[0] == CHARNULL) || (app.net.ip[0] == CHARNULL))
                 {
                     // run network configuration dialog
                     MemClear(&dlg, sizeof(dlg));
-                    if(Dialog(NetworkConfigProc, IDD_NETWORK_CONFIG, wnd.handl, &dlg) == TRUE)
+                    if(Dialog(NetworkConfigProc, IDD_NET_CONFIG, wnd.handl, &dlg) == TRUE)
                     {
                         Loop(&dlg);
                     }
                 }
 
                 // if valid parameters, attempt to stand up as server and/or client
-                if((app.net.tcp > 0) && (app.net.udp > 0) && (app.net.ip[0] != CHARNULL))
+                if((app.net.tcp > 0) && (app.net.udp > 0) && (app.net.pwd[0] != CHARNULL) && (app.net.ip[0] != CHARNULL))
                 {
                     // set in the ip addresses and ports
                     NetAddrIP(disc, app.net.ip, app.net.udp);
@@ -109,9 +111,10 @@ static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
             NetAddrLocalIP(host, FALSE, ListIP);
             ListSelect(hwnd, IDC_IP_LIST, 0, 0);
 
-            // set in current port values
+            // set in current port values and stored password
             TextSet(hwnd, IDC_SERV_TCP_PORT, L"%ld", app.net.tcp);
             TextSet(hwnd, IDC_SERV_UDP_PORT, L"%ld", app.net.udp);
+            TextSet(hwnd, IDC_SERV_PASSWORD, L"%s", app.net.pwd);
 
             // enable or disable server controls as appropriate
             CheckDlgButton(hwnd, IDC_RUN_SERVER, ((app.net.server == TRUE) ? BST_CHECKED : BST_UNCHECKED));
@@ -136,6 +139,12 @@ static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
         case WM_COMMAND:
             switch(LOWORD(wp))
             {
+                case IDC_RUN_SERVER:
+                    app.net.server = (BST_CHECKED == IsDlgButtonChecked(hwnd, IDC_RUN_SERVER));
+                    Enable(hwnd, IDC_STATIC_SERV_TCP_PORT, app.net.server);
+                    Enable(hwnd, IDC_SERV_TCP_PORT, app.net.server);
+                    break;
+
                 case IDOK:
                     // pull out the TCP port number
                     TextGet(hwnd, IDC_SERV_TCP_PORT, temp, sizeof(temp));
@@ -145,12 +154,23 @@ static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
                     TextGet(hwnd, IDC_SERV_UDP_PORT, temp, sizeof(temp));
                     Convert(CONVERT_STR_LNG, &app.net.udp, temp, sizeof(app.net.udp));
 
-                    // pull out the IP address and indicate if we're running as server or not
-                    app.net.server = (BST_CHECKED == IsDlgButtonChecked(hwnd, IDC_RUN_SERVER));
-                    if(ListItem(hwnd, IDC_IP_LIST, LISTIDX_SEL, app.net.ip, sizeof(app.net.ip)) == TRUE)
+                    if((Clamped(app.net.tcp, NET_MIN_IPV_PORT, NET_MAX_IPV_PORT) == FALSE) || (Clamped(app.net.udp, NET_MIN_IPV_PORT, NET_MAX_IPV_PORT) == FALSE))
                     {
-                        // success, close window
-                        SendMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+                        Message(MSG_ERR, hwnd, CONFIG_PORTS, NET_MIN_IPV_PORT, NET_MAX_IPV_PORT);
+                    }else{
+                        // pull out the server password for clients to be approved to connect
+                        if(TextGet(hwnd, IDC_SERV_PASSWORD, app.net.pwd, sizeof(app.net.pwd)) == FALSE)
+                        {
+                            Message(MSG_ERR, hwnd, L"%s", CONFIG_PASSWORD);
+                        }else{
+                            // pull out the IP address and indicate if we're running as server or not
+                            app.net.server = (BST_CHECKED == IsDlgButtonChecked(hwnd, IDC_RUN_SERVER));
+                            if(ListItem(hwnd, IDC_IP_LIST, LISTIDX_SEL, app.net.ip, sizeof(app.net.ip)) == TRUE)
+                            {
+                                // success, close window
+                                SendMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+                            }
+                        }
                     }
                     break;
 
