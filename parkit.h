@@ -27,6 +27,8 @@
 #define APP_TITLE                   L"PARKIT"
 #define APP_VERSION                 L"0.2.7"
 
+#define SPOT_BASE_COUNT             64
+
 #define TIMER_DISCOVERY_ELAPSE      5000
 #define TIMER_DISCOVERY_PULSE       9750
 
@@ -88,7 +90,7 @@ struct
 WNDW    wnd;
 WNDW    dlg;
 
-// necessary sockets for netowrk connections
+// necessary sockets for network connections
 NETIDX  disc;
 NETIDX  host;
 
@@ -117,9 +119,25 @@ void DiscoverMe(void);
   @fn               BOOL Client(const BOOL startup)
   @brief            start application as a client
   @param[in]        startup if TRUE, start the client, if FALSE, destroy
+  @param[in]        forserver if on server side, allocate needed resources to also run client-side commands
   @return           TRUE if setup/destruction was successful, FALSE otherwise
 */
-BOOL Client(const BOOL startup);
+BOOL Client(const BOOL startup, const BOOL forserver);
+
+/**
+  @fn               BOOL FullPollDB(void)
+  @brief            retrieve all database values for parking lot statuses
+  @return           TRUE if all data was successfully polled, FALSE otherwise
+*/
+BOOL FullPollDB(void);
+
+/**
+  @fn               void Input(const WPARAM wp, const BOOL keyisdown)
+  @brief            handle user input
+  @param[in]        wp wparam to WM_KEYDOWN and WM_KEYUP messages
+  @param[in]        keyisdown if handling WM_KEYDOWN message, this is true, otherwise FALSE
+*/
+void Input(const WPARAM wp, const BOOL keyisdown);
 
 /**
   @fn               BOOL Interface(const BOOL start)
@@ -161,9 +179,10 @@ BOOL Server(const BOOL startup);
   @fn               BOOL SpotInfo(const long index, SPOT *spot)
   @brief            return to caller information regarding the spot identified by the index
   @param[in]        index spot identifier for requested spot information
+  @param[in]        get if TRUE, obtain spot information, if FALSE, push spot information
   @param[in out]    spot the information to pass back to caller
   @return           TRUE if information was retrieved, FALSE otherwise
 */
-BOOL SpotInfo(const long index, SPOT *spot);
+BOOL SpotInfo(const long index, const BOOL get, SPOT *spot);
 
 #endif

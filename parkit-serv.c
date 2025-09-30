@@ -211,9 +211,16 @@ BOOL Server(const BOOL startup)
             nt = Thread(NetworkProc, NULL);
             if((at >= 0) && (nt >= 0))
             {
+                // set up client-side behavior too
+                Client(TRUE, TRUE);
+
                 // establish connection to the primary database
                 Timer(wnd.handl, TIMER_DISCOVERY_PULSE, TIMER_DISCOVERY_ELAPSE);
-                success = Database(TRUE);
+                if(Database(TRUE) == TRUE)
+                {
+                    FullPollDB();
+                    success = TRUE;
+                }
             }
         }
     }else{

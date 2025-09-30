@@ -8,8 +8,8 @@
 #define ERROR_CONNECT   L"An error was encountered while attempting to connect to server over TCP. Please ensure correct configuration and try again."
 #define MUTEX_WAIT      -1
 
-static SPOT     *spots = NULL;
-static long     scount = 0;
+// map to store all parking lot spot information
+static MAP      spots;
 
 static INDEX    mut = -1;
 static INDEX    net = -1;
@@ -22,22 +22,33 @@ static void ServerRead(const NETIDX serv);
 static void UdpRead(const NETIDX serv);
 
 /* start application as a client */
-BOOL Client(const BOOL startup)
+BOOL Client(const BOOL startup, const BOOL forserver)
 {
     BOOL    success = FALSE;
 
     if(startup == TRUE)
     {
-        // spin up thread to handle network events for TCP or UDP
-        mut = Mutex();
-        net = Thread(NetworkProc, NULL);
-        if((mut >= 0) && (net >= 0))
+        // create the map to store all parking lot information
+        if(Map(sizeof(long), sizeof(SPOT), SPOT_BASE_COUNT, &spots) == TRUE)
         {
-            // set up UDP listening server to obtain TCP connection information
-            success = NetServer(disc);
+            // spin up thread to handle network events for TCP or UDP
+            mut = Mutex();
+            if(forserver == FALSE)
+            {
+                net = Thread(NetworkProc, NULL);
+                if((mut >= 0) && (net >= 0))
+                {
+                    // set up UDP listening server to obtain TCP connection information
+                    success = NetServer(disc);
+                }
+            }else{
+                success = TRUE;
+            }
         }
     }else{
+        ThreadKill(net, FALSE);
         MutexKill(mut);
+        MapKill(&spots);
         success = TRUE;
     }
 
@@ -120,27 +131,35 @@ static void ServerRead(const NETIDX serv)
 }
 
 /* return to caller information regarding the spot identified by the index */
-BOOL SpotInfo(const long index, SPOT *spot)
+BOOL SpotInfo(const long index, const BOOL get, SPOT *spot)
 {
-    void    *ptr = NULL;
-    BOOL    got = FALSE;
+    BOOL    success = FALSE;
 
-    if((spot != NULL) && (Clamped(index, -1, scount) == TRUE))
+    if((spot != NULL) && (index >= 0))
     {
         // block until we gain control of the mutex
         if(MutexLock(mut, MUTEX_WAIT) == TRUE)
         {
-            // copy out requested data
-            ptr = (void*)(((BYTE*)spots) + (index * sizeof(*spot)));
-            MemCopy(spot, ptr, sizeof(*spot));
+            if(get == TRUE)
+            {
+                // copy out requested data
+                spot = (SPOT*)MapFind(&spots, &index);
+                success = (spot != NULL);
+            }else{
+                // push spot information into map, send to server if we are client
+                success = MapPush(&spots, &index, spot);
+                if((success == TRUE) && (app.net.server == FALSE))
+                {
+                    // TODO - send off to server
+                }
+            }
 
             // release the mutex
-            got = TRUE;
             MutexUnlock(mut);
         }
     }
 
-    return(got);
+    return(success);
 }
 
 /* read in the UDP socket information for connecting to server */

@@ -5,12 +5,32 @@
 */
 #include "parkit.h"
 
-#define SQL_DB_CATALOG  L"parkit"
-#define SQL_DB_TABLE    L"lot-status"
+#define SQL_DB_CATALOG          L"parkit"
+#define SQL_DB_TABLE            L"lot-status"
+
+#define STORED_PROC_FULL_POLL   L"FullDatabasePoll"
+
+enum TABLECOLUMN
+{
+    COLUMN_INVAL = -1,
+    COLUMN_ID,
+    COLUMN_LVL,
+    COLUMN_SPOT,
+    COLUMN_EMPTY,
+    COLUMN_OVERRIDEN,
+    COLUMN_SENSOR,
+    COLUMN_RESERVE,
+    COLUMN_EXPIRES,
+    COLUMN_VEHICLE,
+    COLUMN_LAST
+};
 
 static SQLIDX   sql = -1;
 
+static SPOT     sp = {0};
+
 // static prototypes
+static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata);
 static INT_PTR CALLBACK SqlConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
 /* set up connection to the sql db server */
@@ -53,6 +73,99 @@ BOOL Database(const BOOL standup)
     }
 
     return(success);
+}
+
+/* retrieve all database values for parking lot statuses */
+BOOL FullPollDB(void)
+{
+    BOOL    success = FALSE;
+
+    // perform stored procedure to get all parking lot information
+    if(SqlProc(sql, STORED_PROC_FULL_POLL) == TRUE)
+    {
+        // loop through returned data
+        if(SqlLoop(sql, NULL, TRUE, ProcessPollResults) == TRUE)
+        {
+            // instruct window to redraw
+            SendMessage(wnd.handl, WM_PAINT, 0, 0);
+            success = TRUE;
+        }
+    }
+
+    return(success);
+}
+
+/**
+  @fn           static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata)
+  @brief        dataset loop handler to process each piece of data returned from DB
+  @param[in]    row index of row fetched by sql stored procedure
+  @param[in]    col index of column data retrieved for each row
+  @param[in]    cell data associated with the record data located at (row, col)
+  @param[in]    userdata caller data passed to this function
+  @return       true if data was successfully processed and loop should continue, false otherwise
+*/
+static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata)
+{
+    // ignore user data passed in
+    if(userdata != NULL){}
+
+    // perform parameter checks
+    if((row >= 0) && (col >= 0))
+    {
+        switch(col)
+        {
+            case COLUMN_ID:
+                // first column, reset spot parameters
+                MemClear(&sp, sizeof(sp));
+                break;
+
+            case COLUMN_LVL:
+                Convert(CONVERT_STR_LNG, &sp.level, cell, sizeof(sp.level));
+                break;
+
+            case COLUMN_SPOT:
+                Convert(CONVERT_STR_LNG, &sp.spot, cell, sizeof(sp.spot));
+                break;
+
+            case COLUMN_EMPTY:
+                sp.empty = (cell[0] == L'1');
+                break;
+
+            case COLUMN_OVERRIDEN:
+                sp.overriden = (cell[0] == L'1');
+                break;
+
+            case COLUMN_SENSOR:
+                sp.sensor = (cell[0] == L'1');
+                break;
+
+            case COLUMN_RESERVE:
+                if((cell != NULL) && (cell[0] != CHARNULL))
+                {
+                    // TODO
+                }
+                break;
+
+            case COLUMN_EXPIRES:
+                if((cell != NULL) && (cell[0] != CHARNULL))
+                {
+                    // TODO
+                }
+                break;
+
+            case COLUMN_VEHICLE:
+                if((cell != NULL) && (cell[0] != CHARNULL))
+                {
+                    StrCopy(sp.vehicle, sizeof(sp.vehicle), cell, 0);
+                }
+
+                // last column information, set spot into map
+                SpotInfo(row, FALSE, &sp);
+                break;
+        }
+    }
+
+    return(TRUE);
 }
 
 /**

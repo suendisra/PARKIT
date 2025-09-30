@@ -4,7 +4,6 @@
 [Ll][Ii][Bb]/
 [Rr][Ee][Ll][Ee][Aa][Ss][Ee]/
 [Ss][Hh][Aa][Dd][Ee][Rr]/
-parkit-pass.txt
 .vs/
 *.swp
 *.vcxproj
@@ -37,6 +36,7 @@ build/
 *.tlh
 *.tmp
 *.tmp_proj
+*.txt
 *.log
 *.vspscc
 *.vssscc

@@ -58,7 +58,7 @@ BOOL Network(const BOOL start)
                     NetAddrIP(host, app.net.ip, app.net.tcp);
 
                     // attempt to stand up
-                    success = ((app.net.server == TRUE) ? Server(TRUE) : Client(TRUE));
+                    success = ((app.net.server == TRUE) ? Server(TRUE) : Client(TRUE, FALSE));
                     if(success == FALSE)
                     {
                         // notify user of failure
@@ -72,7 +72,7 @@ BOOL Network(const BOOL start)
         }
     }else{
         // shut down winsock
-        Client(FALSE);
+        Client(FALSE, app.net.server);
         if(app.net.server == TRUE)
         {
             Server(FALSE);

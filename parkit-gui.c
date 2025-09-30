@@ -70,7 +70,7 @@ static BOOL DrawParkingSpot(const QUAD cell, const long index)
     long    idx = 0;
 
     // retrieve information regarding this spot
-    if(SpotInfo(index, &spot) == TRUE)
+    if(SpotInfo(index, TRUE, &spot) == TRUE)
     {
         // draw a border for this parking lot spot
         idx += (spot.empty < 1);
