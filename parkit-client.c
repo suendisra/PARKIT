@@ -133,6 +133,7 @@ static void ServerRead(const NETIDX serv)
 /* return to caller information regarding the spot identified by the index */
 BOOL SpotInfo(const long index, const BOOL get, SPOT *spot)
 {
+    SPOT    *found = NULL;
     BOOL    success = FALSE;
 
     if((spot != NULL) && (index >= 0))
@@ -143,8 +144,12 @@ BOOL SpotInfo(const long index, const BOOL get, SPOT *spot)
             if(get == TRUE)
             {
                 // copy out requested data
-                spot = (SPOT*)MapFind(&spots, &index);
-                success = (spot != NULL);
+                found = (SPOT*)MapFind(&spots, &index);
+                if(found != NULL)
+                {
+                    MemCopy(spot, found, sizeof(*spot));
+                    success = TRUE;
+                }
             }else{
                 // push spot information into map, send to server if we are client
                 success = MapPush(&spots, &index, spot);
