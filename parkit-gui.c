@@ -19,13 +19,14 @@
 #define SCREEN_ROUND                10
 #define SCREEN_ROWS                 8
 
-#define SPOT_INFO                   L"%ld-%03ld"
+#define SPOT_INFO                   L"%ld-%03ld\nOverridden: %s\nReservation: %s\nExpired: %s\nPlate: %s"
 
 static GPH      gph = {0};
 static GRID     screen = {0};
 static GRID     info = {0};
 static INDEX    font = -1;
 static CLRPOOL  scolor = {0};
+static long     coloroffset = 0;
 
 // static prototypes
 static void DrawInfo(void);
@@ -49,6 +50,7 @@ static void DrawInfo(void)
 
     // clear the background and info bar
     GphClear(gph, &info.dims, GCOAL);
+    GphFontColor(gph, GGRAY, GTRANS);
 
     if(app.net.server == TRUE)
     {
@@ -67,24 +69,41 @@ static void DrawInfo(void)
 static BOOL DrawParkingSpot(const QUAD cell, const long index)
 {
     SPOT    spot = {0};
+    QUAD    tdims = {0};
     long    idx = 0;
+    long    cx = 0;
+    long    cy = 0;
+    wchar_t temp[STR_NORM] = {0};
 
     // retrieve information regarding this spot
     if(SpotInfo(index, TRUE, &spot) == TRUE)
     {
         // draw a border for this parking lot spot
-        idx += (spot.empty < 1);
-        idx += (spot.overriden < 2);
-        idx += (spot.reserved < 3);
-        idx += (spot.expired < 4);
+        idx = ((spot.reserved == TRUE) ? coloroffset : 0);
+        idx += ((spot.empty == TRUE) * 1);
+        idx += ((spot.overridden == TRUE) * 2);
+        idx += ((spot.expired == TRUE) * 4);
+
+        // draw color-coded status background rect
         GphStock(gph, scolor.color[idx], GGRAY);
-        GphText(gph, &cell, ALIGN_CENTER2D, SPOT_INFO, spot.level, spot.spot);
+        GphRect(gph, cell, SCREEN_ROUND);
+
+        // draw gray textual backdrop so text pops
+        GphStock(gph, GGRAY, GGRAY);
+        StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.spot, ((spot.overridden == TRUE) ? L"TRUE" : L"FALSE"), L"", L"", L"");
+        FontDims(font, gph.mem.dc, &cx, &cy, L"%s", temp);
+        QuadCentered(cell.mx, cell.my, cx, cy, &tdims);
+        // TODO - GphRect(gph, tdims, SCREEN_ROUND);
+
+        // draw text for the spot
+        GphFontColor(gph, GBLACK, GTRANS);
+        GphText(gph, &cell, ALIGN_CENTER2D, L"%s", temp);
     }else{
         // no information, draw empty spot
         GphStock(gph, GTRANS, GGRAY);
+        GphRect(gph, cell, SCREEN_ROUND);
     }
 
-    GphRect(gph, cell, SCREEN_ROUND);
     return(TRUE);
 }
 
@@ -117,7 +136,6 @@ BOOL Interface(const BOOL start)
             {
                 // set the font text and color
                 GphFont(&gph, font);
-                GphFontColor(gph, GGRAY, GTRANS);
 
                 // create a grid for the textual information
                 Grid(&gph, &dims[0], SCREEN_ROWS, SCREEN_COLS, HEADER_NONE, &screen);
@@ -125,6 +143,7 @@ BOOL Interface(const BOOL start)
 
                 // set up colors for quick and easy understanding of parking spot status
                 PoolDefault(&scolor);
+                coloroffset = (scolor.count / 2);
                 success = TRUE;
             }
         }

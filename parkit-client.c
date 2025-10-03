@@ -15,11 +15,32 @@ static INDEX    mut = -1;
 static INDEX    net = -1;
 
 // static prototypes
+static long CompareIndex(const BYTE *b1, const BYTE *b2, const long sz);
 static void NetworkProc(const long thread);
 static void ServerClose(const NETIDX serv);
 static void ServerConnect(const NETIDX serv, const long err);
 static void ServerRead(const NETIDX serv);
 static void UdpRead(const NETIDX serv);
+
+static long CompareIndex(const BYTE *b1, const BYTE *b2, const long sz)
+{
+    INDEX   i1 = -1;
+    INDEX   i2 = -1;
+    long    result = 0;
+
+    if((b1 != NULL) && (b2 != NULL) && (sz > 0))
+    {
+        // pull out the index values
+        i1 = *((INDEX*)b1);
+        i2 = *((INDEX*)b2);
+        if(i1 != i2)
+        {
+            result = ((i1 < i2) ? 1 : -1);
+        }
+    }
+
+    return(result);
+}
 
 /* start application as a client */
 BOOL Client(const BOOL startup, const BOOL forserver)
@@ -29,7 +50,7 @@ BOOL Client(const BOOL startup, const BOOL forserver)
     if(startup == TRUE)
     {
         // create the map to store all parking lot information
-        if(Map(sizeof(long), sizeof(SPOT), SPOT_BASE_COUNT, &spots) == TRUE)
+        if(Map(sizeof(long), sizeof(SPOT), SPOT_BASE_COUNT, CompareIndex, &spots) == TRUE)
         {
             // spin up thread to handle network events for TCP or UDP
             mut = Mutex();

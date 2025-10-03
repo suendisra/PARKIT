@@ -132,7 +132,7 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
                 break;
 
             case COLUMN_OVERRIDEN:
-                sp.overriden = (cell[0] == L'1');
+                sp.overridden = (cell[0] == L'1');
                 break;
 
             case COLUMN_SENSOR:

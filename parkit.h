@@ -61,7 +61,7 @@ typedef struct
     wchar_t vehicle[STR_MEDIUM];
 
     BOOL    empty;
-    BOOL    overriden;
+    BOOL    overridden;
     BOOL    sensor;
 }SPOT;
 
