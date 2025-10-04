@@ -35,7 +35,7 @@ static long CompareIndex(const BYTE *b1, const BYTE *b2, const long sz)
         i2 = *((INDEX*)b2);
         if(i1 != i2)
         {
-            result = ((i1 < i2) ? 1 : -1);
+            result = ((i1 < i2) ? -1 : 1);
         }
     }
 
