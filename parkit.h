@@ -85,6 +85,8 @@ struct
         BOOL    server;         // indicates if this device is running as server
         BOOL    connected;      // indicates if this device, as client, has connected to server
     }net;
+
+    BOOL    showlegend;
 }app;
 
 WNDW    wnd;

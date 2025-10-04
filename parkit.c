@@ -100,6 +100,7 @@ static void Defaults(void)
     // assign random TCP port with simple increment to UDP port
     app.net.tcp = (USHORT)Random(NET_MIN_IPV_PORT, (NET_MAX_IPV_PORT - 1));
     app.net.udp = (app.net.tcp + 1);
+    app.showlegend = TRUE;
 }
 
 /* attempt to read in or write out system-stored server configuration */

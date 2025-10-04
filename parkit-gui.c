@@ -9,17 +9,18 @@
 #define FONT_SIZE                   24
 
 #define INFO_COLS                   8
-#define INFO_CLIENT                 L" | | | | | |[M]ODE |SRV(%ld)|"
+#define INFO_CLIENT                 L"[L]EGEND| | | | | |[M]ODE |SRV(%ld)|"
 #define INFO_ROWS                   1
-#define INFO_SERVER                 L" | | | | | |[M]ODE |DB(%ld)|"
+#define INFO_SERVER                 L"[L]EGEND| | | | | |[M]ODE |DB(%ld)|"
 
+#define RATIO_LEGEND                0.55    // divisional value for legend overlap display
 #define RATIO_SCREEN                0.96    // divisional value for main screen and info bar
 
 #define SCREEN_COLS                 8
 #define SCREEN_ROUND                10
 #define SCREEN_ROWS                 8
 
-#define SPOT_INFO                   L"%ld-%03ld\nOverridden: %s\nReservation: %s\nExpired: %s\nPlate: %s"
+#define SPOT_INFO                   L"%ld-%03ld\nUntil: %s\nPlate: %s"
 
 static GPH      gph = {0};
 static GRID     screen = {0};
@@ -30,6 +31,7 @@ static long     coloroffset = 0;
 
 // static prototypes
 static void DrawInfo(void);
+static void DrawLegend(void);
 static void DrawScreen(void);
 
 /* draw primary application screen */
@@ -39,6 +41,12 @@ void Draw(const HWND parent)
     {
         DrawInfo();
         DrawScreen();
+
+        // if user has opted for it, or first time starting up (ever), show display
+        DrawLegend();
+
+        // blit and display
+        GphBlit(gph);
         GphPaint(&gph, parent);
     }
 }
@@ -58,11 +66,25 @@ static void DrawInfo(void)
     }else{
         StrFormat(temp, sizeof(temp), INFO_CLIENT, app.net.connected);
     }
+
     CharReplace(temp, sizeof(temp), CHARPIPE, CHARNULL);
     GphList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);
+}
 
-    // blit and display
-    GphBlit(gph);
+/* draw legend of colors to indicate properties of each parking spot portrayed */
+static void DrawLegend(void)
+{
+    QUAD    dims = screen.dims;
+
+    if(app.showlegend == TRUE)
+    {
+        // draw legend background
+        QuadScale(TRUE, RATIO_LEGEND, RATIO_LEGEND, &dims);
+        GphStock(gph, GGRAY, GWHITE);
+        GphRect(gph, dims, SCREEN_ROUND);
+
+        // TODO
+    }
 }
 
 /* draw contents of each parking spot in the  */
@@ -90,7 +112,7 @@ static BOOL DrawParkingSpot(const QUAD cell, const long index)
 
         // draw gray textual backdrop so text pops
         GphStock(gph, GGRAY, GGRAY);
-        StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.spot, ((spot.overridden == TRUE) ? L"TRUE" : L"FALSE"), L"", L"", L"");
+        StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.spot, L"", L"");
         FontDims(font, gph.mem.dc, &cx, &cy, L"%s", temp);
         QuadCentered(cell.mx, cell.my, cx, cy, &tdims);
         // TODO - GphRect(gph, tdims, SCREEN_ROUND);

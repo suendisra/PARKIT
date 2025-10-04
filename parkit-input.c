@@ -14,6 +14,11 @@ void Input(const WPARAM wp, const BOOL keyisdown)
 
     if(KeySet(wp, keyisdown, &kb) == TRUE)
     {
+        if(kb.up['M'] == TRUE)
+        {
+            // TODO
+        }
+
         // allow user to change mode (client<->server) if desired
         if(kb.up['M'] == TRUE)
         {
