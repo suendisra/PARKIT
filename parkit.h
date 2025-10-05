@@ -225,4 +225,12 @@ BOOL SpotInfo(const BOOL get, SPOT *spot);
 */
 BOOL VerifyPacket(const PACKET *pkt);
 
+/**
+  @fn               BOOL UpdateSpot(const SPOT spot)
+  @brief            update database information for given spot
+  @param[in]        spot information for given spot
+  @return           true if database was successfully updated, false otherwise
+*/
+BOOL UpdateSpot(const SPOT spot);
+
 #endif

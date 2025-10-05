@@ -229,3 +229,13 @@ static INT_PTR CALLBACK SqlConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
     return(rval);
 }
+
+/* update database information for given spot */
+BOOL UpdateSpot(const SPOT spot)
+{
+    BOOL    success = FALSE;
+
+    // TODO
+
+    return(success);
+}

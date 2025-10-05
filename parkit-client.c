@@ -142,6 +142,7 @@ static void ServerConnect(const NETIDX serv, const long err)
         if(err == 0)
         {
             // successful connection
+            myID = -1;
             app.net.connected = TRUE;
             Refresh(wnd.handl);
         }else{
@@ -156,30 +157,36 @@ static void ServerRead(const NETIDX serv)
 {
     PACKET  pkt = {0};
 
-    // receive and verify
-    if(NetRecv(serv, &pkt, sizeof(pkt), NULL) == TRUE)
+    if(host == serv)
     {
-        if(VerifyPacket(&pkt) == TRUE)
+        // receive and verify
+        if(NetRecv(serv, &pkt, sizeof(pkt), NULL) == TRUE)
         {
-            // block until we gain control of the mutex
-            if(MutexLock(mut, MUTEX_WAIT) == TRUE)
+            if(EncryptXOR(&pkt, sizeof(pkt), app.net.pwd, app.net.plen) == TRUE)
             {
-                // pull in the data from server, handle accordingly
-                switch(pkt.type)
+                if(VerifyPacket(&pkt) == TRUE)
                 {
-                    case PKT_TYPE_HANDSHAKE:
-                        myID = pkt.id;
-                        ProcessHandshake(pkt.data.shake);
-                        break;
+                    // block until we gain control of the mutex
+                    if(MutexLock(mut, MUTEX_WAIT) == TRUE)
+                    {
+                        // pull in the data from server, handle accordingly
+                        switch(pkt.type)
+                        {
+                            case PKT_TYPE_HANDSHAKE:
+                                myID = pkt.id;
+                                ProcessHandshake(pkt.data.shake);
+                                break;
 
-                    case PKT_TYPE_SPOTINFO:
-                        // TODO
-                        break;
+                            case PKT_TYPE_SPOTINFO:
+                                MapPush(&spots, &pkt.data.spot.index, &pkt.data.spot);
+                                break;
+                        }
+
+                        // redraw window and release the mutex
+                        Refresh(wnd.handl);
+                        MutexUnlock(mut);
+                    }
                 }
-
-                // redraw window and release the mutex
-                Refresh(wnd.handl);
-                MutexUnlock(mut);
             }
         }
     }
@@ -188,6 +195,7 @@ static void ServerRead(const NETIDX serv)
 /* return to caller information regarding the spot identified by the index */
 BOOL SpotInfo(const BOOL get, SPOT *spot)
 {
+    PACKET  pkt = {0};
     SPOT    *found = NULL;
     BOOL    success = FALSE;
 
@@ -210,7 +218,14 @@ BOOL SpotInfo(const BOOL get, SPOT *spot)
                 success = MapPush(&spots, &spot->index, spot);
                 if((success == TRUE) && (app.net.server == FALSE))
                 {
-                    // TODO
+                    // prepare packet to send to server
+                    Datum(DATUMZONE_UTC, &pkt.dt);
+                    pkt.type = PKT_TYPE_SPOTINFO;
+                    pkt.id = myID;
+                    MemCopy(&pkt.data.spot, spot, sizeof(*spot));
+
+                    // send it off
+                    NetSend(host, &pkt, sizeof(pkt));
                 }
             }
 

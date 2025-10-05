@@ -37,10 +37,10 @@ static void ClientAccept(const NETIDX idx);
 static void ClientRead(const NETIDX idx);
 static void ClientClose(const NETIDX idx);
 static void NetworkProc(const long thread);
-static void ProcessAccept(const NETIDX idx, const PACKET *p);
+static void ProcessAccept(const NETIDX idx);
 static void ProcessClose(const NETIDX idx);
 static void ProcessRead(const NETIDX idx, const PACKET *p);
-static void ProcessWrite(const NETIDX idx, const PACKET *p);
+static void ProcessWrite(const NETIDX idx, const SPOT spot);
 
 /* perform each action on the queue */
 static void ActionProc(const long thread)
@@ -57,7 +57,7 @@ static void ActionProc(const long thread)
             {
                 case ACTION_ACCEPT:
                     // new client was accepted, place into tracking array
-                    ProcessAccept(a.client, &a.pack);
+                    ProcessAccept(a.client);
                     break;
 
                 case ACTION_CLOSE:
@@ -72,7 +72,7 @@ static void ActionProc(const long thread)
 
                 case ACTION_WRITE:
                     // write data on socket to client
-                    ProcessWrite(a.client, &a.pack);
+                    ProcessWrite(a.client, a.pack.data.spot);
                     break;
             }
         }
@@ -164,12 +164,12 @@ static void NetworkProc(const long thread)
 }
 
 /* new client has been accepted by the server, perform handshake */
-static void ProcessAccept(const NETIDX idx, const PACKET *p)
+static void ProcessAccept(const NETIDX idx)
 {
     PACKET  pkt = {0};
     BOOL    valid = FALSE;
 
-    if((idx >= 0) && (p != NULL))
+    if(idx >= 0)
     {
         // store client socket in map, indicating that client still isn't valid until after handshake
         if(MapPush(&clients, &idx, &valid) == TRUE)
@@ -181,8 +181,12 @@ static void ProcessAccept(const NETIDX idx, const PACKET *p)
             pkt.data.shake.req = TRUE;
             pkt.id = idx;
 
-            // send client handshake request
-            NetSend(idx, &pkt, sizeof(pkt));
+            // encrypt handshake packet
+            if(EncryptXOR(&pkt, sizeof(pkt), app.net.pwd, app.net.plen) == TRUE)
+            {
+                // send client handshake request
+                NetSend(idx, &pkt, sizeof(pkt));
+            }
         }
     }
 }
@@ -203,18 +207,65 @@ static void ProcessClose(const NETIDX idx)
 /* based off of packet contents, perform requested operations */
 static void ProcessRead(const NETIDX idx, const PACKET *p)
 {
+    LPVOID  found = NULL;
+    BOOL    valid = TRUE;
+
     if((idx >= 0) && (p != NULL))
     {
-        /// TODO
+        switch(p->type)
+        {
+            case PKT_TYPE_HANDSHAKE:
+                // client was accepted, but has now returned the handshake
+                if(MapFind(&clients, &p->id) != NULL)
+                {
+                    // now client is considered valid
+                    MapPush(&clients, &p->id, &valid);
+                }
+                break;
+
+            case PKT_TYPE_SPOTINFO:
+                // ensure spot information data only comes from valid client
+                found = MapFind(&clients, &p->id);
+                if(found != NULL)
+                {
+                    // check client validity
+                    valid = *(BOOL*)found;
+                    if(valid == TRUE)
+                    {
+                        // valid client, pass updated data to database
+                        if(UpdateSpot(p->data.spot) == TRUE)
+                        {
+                            // update server's local copy of the information
+                            if(SpotInfo(FALSE, (SPOT*)&p->data.spot) == TRUE)
+                            {
+                                /// TODO - update all other clients with spot info (essentially stack action queue with commands to processwrite)
+                                // spin up actions to inform all clients
+                            }
+                        }
+                    }
+                }
+                break;
+        }
     }
 }
 
 /* based off of packet contents, perform requested operations */
-static void ProcessWrite(const NETIDX idx, const PACKET *p)
+static void ProcessWrite(const NETIDX idx, const SPOT spot)
 {
-    if((idx >= 0) && (p != NULL))
+    PACKET  pkt = {0};
+
+    if(idx >= 0)
     {
-        /// TODO
+        // prepare outgoing packet
+        Datum(DATUMZONE_UTC, &pkt.dt);
+        pkt.type = PKT_TYPE_SPOTINFO;
+        MemCopy(&pkt.data.spot, &spot, sizeof(pkt.data.spot));
+
+        // encrypt outgoing packet
+        if(EncryptXOR(&pkt, sizeof(pkt), app.net.pwd, app.net.plen) == TRUE)
+        {
+            NetSend(idx, &pkt, sizeof(pkt));
+        }
     }
 }
 
