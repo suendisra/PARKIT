@@ -117,6 +117,7 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
             case COLUMN_ID:
                 // first column, reset spot parameters
                 MemClear(&sp, sizeof(sp));
+                sp.index = row;
                 break;
 
             case COLUMN_LVL:
@@ -160,7 +161,7 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
                 }
 
                 // last column information, set spot into map
-                SpotInfo(row, FALSE, &sp);
+                SpotInfo(FALSE, &sp);
                 break;
         }
     }

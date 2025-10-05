@@ -5,9 +5,13 @@
 */
 #include "parkit.h"
 
-#define CONFIG_ERROR    L"An error was encountered while attempting to stand up network operations. Please adjust network configuration values and try again."
-#define CONFIG_PASSWORD L"The server password for communications must not be empty. Please specify a password."
-#define CONFIG_PORTS    L"One or both of the ports given are invalid. Please specify ports in the range of (%ld, %ld)."
+#define CONFIG_ERROR        L"An error was encountered while attempting to stand up network operations. Please adjust network configuration values and try again."
+#define CONFIG_PASSWORD     L"The server password for communications must not be empty. Please specify a password."
+#define CONFIG_PORTS        L"One or both of the ports given are invalid. Please specify ports in the range of (%ld, %ld)."
+
+#define PACKET_EXPIRE       30  // 30 seconds for packets to expire
+
+#define UDP_BROADCAST_SERVER    L"%s-%s-%ld"
 
 // static prototypes
 static void ListIP(const INDEX idx, const wchar_t *ip);
@@ -168,6 +172,7 @@ static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
                             if(ListItem(hwnd, IDC_IP_LIST, LISTIDX_SEL, app.net.ip, sizeof(app.net.ip)) == TRUE)
                             {
                                 // success, close window
+                                app.net.plen = StrLen(app.net.pwd, sizeof(app.net.pwd));
                                 SendMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
                             }
                         }
@@ -182,4 +187,52 @@ static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
     }
 
     return(rval);
+}
+
+/* ensure data packet is valid and from trusted source */
+BOOL VerifyPacket(const PACKET *pkt)
+{
+    DATUM   diff = {0};
+    DATUM   now = {0};
+
+    BOOL    verified = FALSE;
+
+    if(pkt != NULL)
+    {
+        // ensure packet was sent within a reasonable time
+        Datum(DATUMZONE_UTC, &now);
+        DatumDiff(&now, &pkt->dt, &diff);
+        if((diff.year == 0) && (diff.month == 0) && (diff.day == 0) && (diff.hour == 0) && (diff.min == 0) && (diff.sec < PACKET_EXPIRE))
+        {
+            // validate the data based on packet type
+            switch(pkt->type)
+            {
+                case PKT_TYPE_CAST:
+                    // ensure proper network port
+                    if(Clamped(pkt->data.cast.port, NET_MIN_IPV_PORT, NET_MAX_IPV_PORT) == TRUE)
+                    {
+                        // ensure valid title and version
+                        if((StrCompare(pkt->data.cast.title, APP_TITLE, 0, FALSE) == 0) && (StrCompare(pkt->data.cast.version, APP_VERSION, 0, FALSE) == 0))
+                        {
+                            verified = TRUE;
+                        }
+                    }
+                    break;
+
+                case PKT_TYPE_HANDSHAKE:
+                    // packet data should be either request or acknowledgement
+                    if(((pkt->data.shake.req == TRUE) && (pkt->data.shake.ack == FALSE)) || ((pkt->data.shake.req == FALSE) && (pkt->data.shake.ack == TRUE)))
+                    {
+                        verified = (pkt->id >= 0);
+                    }
+                    break;
+
+                case PKT_TYPE_SPOTINFO:
+                    // TODO
+                    break;
+            }
+        }
+    }
+
+    return(verified);
 }

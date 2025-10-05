@@ -38,14 +38,29 @@
 #pragma comment(lib, "NET.lib")
 #pragma comment(lib, "WIN.lib")
 
-// tcp packet structure
+enum PKTTYPE
+{
+    PKT_TYPE_INVAL = -1,
+    PKT_TYPE_CAST,
+    PKT_TYPE_HANDSHAKE,
+    PKT_TYPE_SPOTINFO,
+    PKT_TYPE_LAST
+};
+
+// udp packet structure designed to hold broadcast information
 typedef struct
 {
-    DATUM   dt;
-    long    level;
-    long    spot;
-    BOOL    override;
-}PACKET;
+    USHORT  port;
+    wchar_t title[STR_SMALL];
+    wchar_t version[STR_SMALL];
+}CAST;
+
+// struct for TCP server-client handshake
+typedef struct
+{
+    BOOL    req;
+    BOOL    ack;
+}HAND;
 
 // data for parking spot
 typedef struct
@@ -55,6 +70,7 @@ typedef struct
     BOOL    reserved;
     BOOL    expired;
 
+    INDEX   index;
     long    level;
     long    spot;
 
@@ -64,6 +80,21 @@ typedef struct
     BOOL    overridden;
     BOOL    sensor;
 }SPOT;
+
+typedef struct
+{
+    enum PKTTYPE    type;
+
+    DATUM           dt;
+    INDEX           id;
+
+    union
+    {
+        CAST    cast;
+        SPOT    spot;
+        HAND    shake;
+    }data;
+}PACKET;
 
 struct
 {
@@ -81,6 +112,7 @@ struct
 
         wchar_t ip[STR_NORM];   // system IP address to use for tcp/udp
         wchar_t pwd[STR_NORM];  // password to connect to server (supplied by network admin during config)
+        long    plen;
 
         BOOL    server;         // indicates if this device is running as server
         BOOL    connected;      // indicates if this device, as client, has connected to server
@@ -178,13 +210,19 @@ void ReserveSpot(const long index);
 BOOL Server(const BOOL startup);
 
 /**
-  @fn               BOOL SpotInfo(const long index, SPOT *spot)
+  @fn               BOOL SpotInfo(const BOOL get, SPOT *spot)
   @brief            return to caller information regarding the spot identified by the index
-  @param[in]        index spot identifier for requested spot information
   @param[in]        get if TRUE, obtain spot information, if FALSE, push spot information
   @param[in out]    spot the information to pass back to caller
   @return           TRUE if information was retrieved, FALSE otherwise
 */
-BOOL SpotInfo(const long index, const BOOL get, SPOT *spot);
+BOOL SpotInfo(const BOOL get, SPOT *spot);
+
+/**
+  @fn               BOOL VerifyPacket(const PACKET *p)
+  @brief            pkt pointer to packet contents to verify
+  @return           if true packet is valid, false otherwise
+*/
+BOOL VerifyPacket(const PACKET *pkt);
 
 #endif

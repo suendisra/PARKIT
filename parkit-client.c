@@ -5,23 +5,27 @@
 */
 #include "parkit.h"
 
-#define ERROR_CONNECT   L"An error was encountered while attempting to connect to server over TCP. Please ensure correct configuration and try again."
-#define MUTEX_WAIT      -1
+#define ERROR_CONNECT           L"An error was encountered while attempting to connect to server over TCP. Please ensure correct configuration and try again."
+
+#define MUTEX_WAIT              -1
 
 // map to store all parking lot spot information
 static MAP      spots;
 
 static INDEX    mut = -1;
 static INDEX    net = -1;
+static INDEX    myID = -1;
 
 // static prototypes
 static long CompareIndex(const BYTE *b1, const BYTE *b2, const long sz);
 static void NetworkProc(const long thread);
+static void ProcessHandshake(const HAND shake);
 static void ServerClose(const NETIDX serv);
 static void ServerConnect(const NETIDX serv, const long err);
 static void ServerRead(const NETIDX serv);
 static void UdpRead(const NETIDX serv);
 
+/* given two indicies, compare their values for searching and sorting in the map */
 static long CompareIndex(const BYTE *b1, const BYTE *b2, const long sz)
 {
     INDEX   i1 = -1;
@@ -35,6 +39,7 @@ static long CompareIndex(const BYTE *b1, const BYTE *b2, const long sz)
         i2 = *((INDEX*)b2);
         if(i1 != i2)
         {
+            // return comparison result
             result = ((i1 < i2) ? -1 : 1);
         }
     }
@@ -95,6 +100,23 @@ void OverrideSpot(const long index)
     }
 }
 
+/* accept handshake from server and send back acknowledgement */
+static void ProcessHandshake(const HAND shake)
+{
+    PACKET  pkt = {0};
+
+    if((shake.req == TRUE) && (shake.ack == FALSE))
+    {
+        // server has requested handshake, send one back
+        Datum(DATUMZONE_UTC, &pkt.dt);
+        pkt.type = PKT_TYPE_HANDSHAKE;
+        pkt.id = myID;
+        pkt.data.shake.req = FALSE;
+        pkt.data.shake.ack = TRUE;
+        NetSend(host, &pkt, sizeof(pkt));
+    }
+}
+
 /* prompt client user to give reservation info, then send to server */
 void ReserveSpot(const long index)
 {
@@ -115,7 +137,7 @@ static void ServerClose(const NETIDX serv)
 /* asynchronous connection attempt has returned, handle it */
 static void ServerConnect(const NETIDX serv, const long err)
 {
-    if(serv >= 0)
+    if(serv == host)
     {
         if(err == 0)
         {
@@ -132,32 +154,44 @@ static void ServerConnect(const NETIDX serv, const long err)
 /* server has sent data, read it in */
 static void ServerRead(const NETIDX serv)
 {
-    PACKET  pack = {0};
+    PACKET  pkt = {0};
 
-    if(NetRecv(serv, &pack, sizeof(pack), NULL) == TRUE)
+    // receive and verify
+    if(NetRecv(serv, &pkt, sizeof(pkt), NULL) == TRUE)
     {
-        // block until we gain control of the mutex
-        if(MutexLock(mut, MUTEX_WAIT) == TRUE)
+        if(VerifyPacket(&pkt) == TRUE)
         {
-            /// TODO read in the data and update the appropriate spot with the information
+            // block until we gain control of the mutex
+            if(MutexLock(mut, MUTEX_WAIT) == TRUE)
+            {
+                // pull in the data from server, handle accordingly
+                switch(pkt.type)
+                {
+                    case PKT_TYPE_HANDSHAKE:
+                        myID = pkt.id;
+                        ProcessHandshake(pkt.data.shake);
+                        break;
 
-            // copy in supplied data
-            /// TODO ptr = (spots + (index * sizeof(SPOT)));
+                    case PKT_TYPE_SPOTINFO:
+                        // TODO
+                        break;
+                }
 
-            // redraw window and release the mutex
-            Refresh(wnd.handl);
-            MutexUnlock(mut);
+                // redraw window and release the mutex
+                Refresh(wnd.handl);
+                MutexUnlock(mut);
+            }
         }
     }
 }
 
 /* return to caller information regarding the spot identified by the index */
-BOOL SpotInfo(const long index, const BOOL get, SPOT *spot)
+BOOL SpotInfo(const BOOL get, SPOT *spot)
 {
     SPOT    *found = NULL;
     BOOL    success = FALSE;
 
-    if((spot != NULL) && (index >= 0))
+    if((spot != NULL) && (spot->index >= 0))
     {
         // block until we gain control of the mutex
         if(MutexLock(mut, MUTEX_WAIT) == TRUE)
@@ -165,7 +199,7 @@ BOOL SpotInfo(const long index, const BOOL get, SPOT *spot)
             if(get == TRUE)
             {
                 // copy out requested data
-                found = (SPOT*)MapFind(&spots, &index);
+                found = (SPOT*)MapFind(&spots, &spot->index);
                 if(found != NULL)
                 {
                     MemCopy(spot, found, sizeof(*spot));
@@ -173,10 +207,10 @@ BOOL SpotInfo(const long index, const BOOL get, SPOT *spot)
                 }
             }else{
                 // push spot information into map, send to server if we are client
-                success = MapPush(&spots, &index, spot);
+                success = MapPush(&spots, &spot->index, spot);
                 if((success == TRUE) && (app.net.server == FALSE))
                 {
-                    // TODO - send off to server
+                    // TODO
                 }
             }
 
@@ -191,28 +225,30 @@ BOOL SpotInfo(const long index, const BOOL get, SPOT *spot)
 /* read in the UDP socket information for connecting to server */
 static void UdpRead(const NETIDX serv)
 {
+    PACKET      pkt = {0};
     SOCKADDR_IN from = {0};
-    wchar_t     cmp[STR_NORM] = {0};
+
     wchar_t     ip[STR_NORM] = {0};
-    wchar_t     msg[STR_NORM] = {0};
 
     if((serv >= 0) && (app.net.connected == FALSE))
     {
-        // receive packet from UDP discovery
-        if(NetRecv(serv, msg, sizeof(msg), &from) == TRUE)
+        // receive and interpret broadcast message
+        if(NetRecv(serv, &pkt, sizeof(pkt), &from) == TRUE)
         {
-            // ensure proper version match
-            StrFormat(cmp, sizeof(cmp), L"%s%s", APP_TITLE, APP_VERSION);
-            if(StrCompare(msg, cmp, 0, FALSE) == 0)
+            // decrypt packet contents
+            if(EncryptXOR(&pkt, sizeof(pkt), app.net.pwd, app.net.plen) == TRUE)
             {
-                // convert address to IP
-                if(InetNtop(AF_INET, &from, ip, (sizeof(ip) / sizeof(ip[0]))) != NULL)
+                if(VerifyPacket(&pkt) == TRUE)
                 {
-                    // attempt to create TCP/IP address for received address
-                    if(NetAddrIP(host, ip, from.sin_port) == TRUE)
+                    // convert address to IP
+                    if(InetNtop(AF_INET, &from, ip, (sizeof(ip) / sizeof(ip[0]))) != NULL)
                     {
-                        // attempt connection
-                        NetConnect(serv);
+                        // attempt to create TCP/IP address for received address
+                        if(NetAddrIP(host, ip, pkt.data.cast.port) == TRUE)
+                        {
+                            // attempt connection
+                            NetConnect(host);
+                        }
                     }
                 }
             }

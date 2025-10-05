@@ -91,14 +91,12 @@ static void DrawLegend(void)
 static BOOL DrawParkingSpot(const QUAD cell, const long index)
 {
     SPOT    spot = {0};
-    QUAD    tdims = {0};
     long    idx = 0;
-    long    cx = 0;
-    long    cy = 0;
     wchar_t temp[STR_NORM] = {0};
 
     // retrieve information regarding this spot
-    if(SpotInfo(index, TRUE, &spot) == TRUE)
+    spot.index = index;
+    if(SpotInfo(TRUE, &spot) == TRUE)
     {
         // draw a border for this parking lot spot
         idx = ((spot.reserved == TRUE) ? coloroffset : 0);
@@ -110,15 +108,9 @@ static BOOL DrawParkingSpot(const QUAD cell, const long index)
         GphStock(gph, scolor.color[idx], GGRAY);
         GphRect(gph, cell, SCREEN_ROUND);
 
-        // draw gray textual backdrop so text pops
-        GphStock(gph, GGRAY, GGRAY);
-        StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.spot, L"", L"");
-        FontDims(font, gph.mem.dc, &cx, &cy, L"%s", temp);
-        QuadCentered(cell.mx, cell.my, cx, cy, &tdims);
-        // TODO - GphRect(gph, tdims, SCREEN_ROUND);
-
         // draw text for the spot
         GphFontColor(gph, GBLACK, GTRANS);
+        StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.index, L"", spot.vehicle);
         GphText(gph, &cell, ALIGN_CENTER2D, L"%s", temp);
     }else{
         // no information, draw empty spot

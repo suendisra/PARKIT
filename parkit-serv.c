@@ -5,9 +5,7 @@
 */
 #include "parkit.h"
 
-#define ACTION_WAIT                 500
-
-#define SERVER_MAX_CLIENTS          64
+#define ACTION_WAIT     500
 
 // actions which the action thread will perform
 enum ACTIONTYPE
@@ -40,10 +38,9 @@ static void ClientRead(const NETIDX idx);
 static void ClientClose(const NETIDX idx);
 static void NetworkProc(const long thread);
 static void ProcessAccept(const NETIDX idx, const PACKET *p);
-static void ProcessClose(const NETIDX idx, const PACKET *p);
+static void ProcessClose(const NETIDX idx);
 static void ProcessRead(const NETIDX idx, const PACKET *p);
 static void ProcessWrite(const NETIDX idx, const PACKET *p);
-static BOOL VerifyData(const PACKET *p);
 
 /* perform each action on the queue */
 static void ActionProc(const long thread)
@@ -65,7 +62,7 @@ static void ActionProc(const long thread)
 
                 case ACTION_CLOSE:
                     // client has closed, remove from tracking array
-                    ProcessClose(a.client, &a.pack);
+                    ProcessClose(a.client);
                     break;
 
                 case ACTION_READ:
@@ -122,13 +119,18 @@ static void ClientRead(const NETIDX idx)
     // receive the data from the client
     if(NetRecv(idx, &pack, sizeof(pack), NULL) == TRUE)
     {
-        if(VerifyData(&pack) == TRUE)
+        // decrypt incoming client data
+        if(EncryptXOR(&pack, sizeof(pack), app.net.pwd, app.net.plen) == TRUE)
         {
-            // data read in, push into action queue for processing
-            MemCopy(&a.pack, &pack, sizeof(a.pack));
-            a.action = ACTION_READ;
-            a.client = idx;
-            QueuePush(&a, &aq);
+            // verify data passed is valid
+            if(VerifyPacket(&pack) == TRUE)
+            {
+                // data read in, push into action queue for processing
+                MemCopy(&a.pack, &pack, sizeof(a.pack));
+                a.action = ACTION_READ;
+                a.client = idx;
+                QueuePush(&a, &aq);
+            }
         }
     }
 }
@@ -136,10 +138,20 @@ static void ClientRead(const NETIDX idx)
 /* send out UDP discovery information */
 void DiscoverMe(void)
 {
-    wchar_t msg[STR_SMALL] = {0};
+    PACKET  pkt = {0};
 
-    StrFormat(msg, sizeof(msg), L"%s%s", APP_TITLE, APP_VERSION);
-    NetCastUDP(disc, msg, sizeof(msg));
+    // configure broadcast packet
+    Datum(DATUMZONE_UTC, &pkt.dt);
+    StrCopy(pkt.data.cast.title, sizeof(pkt.data.cast.title), APP_TITLE, 0);
+    StrCopy(pkt.data.cast.version, sizeof(pkt.data.cast.version), APP_VERSION, 0);
+    pkt.data.cast.port = app.net.tcp;
+    pkt.type = PKT_TYPE_CAST;
+
+    // configure and encrypt UDP broadcast data
+    if(EncryptXOR(&pkt, sizeof(pkt), app.net.pwd, app.net.plen) == TRUE)
+    {
+        NetCastUDP(disc, &pkt, sizeof(pkt));
+    }
 }
 
 /* handle each network event that occurs */
@@ -154,25 +166,37 @@ static void NetworkProc(const long thread)
 /* new client has been accepted by the server, perform handshake */
 static void ProcessAccept(const NETIDX idx, const PACKET *p)
 {
+    PACKET  pkt = {0};
+    BOOL    valid = FALSE;
+
     if((idx >= 0) && (p != NULL))
     {
-        // store client socket in map
-        MapPush(&clients, &clients.cc, &idx);
+        // store client socket in map, indicating that client still isn't valid until after handshake
+        if(MapPush(&clients, &idx, &valid) == TRUE)
+        {
+            // build packet for handshake
+            Datum(DATUMZONE_UTC, &pkt.dt);
+            pkt.type = PKT_TYPE_HANDSHAKE;
+            pkt.data.shake.ack = FALSE;
+            pkt.data.shake.req = TRUE;
+            pkt.id = idx;
 
-        // send client acceptance letter and inform of incoming data
-        /// TODO
-
-        // poll sql table for each spot info and queue to send to client
-        /// TODO
+            // send client handshake request
+            NetSend(idx, &pkt, sizeof(pkt));
+        }
     }
 }
 
 /* client closed socket, process clean up */
-static void ProcessClose(const NETIDX idx, const PACKET *p)
+static void ProcessClose(const NETIDX idx)
 {
-    if((idx >= 0) && (p != NULL))
+    BOOL    valid = FALSE;
+
+    if(idx >= 0)
     {
-        /// TODO
+        // remove client from map and close its socket
+        MapPop(&clients, &idx, &valid);
+        NetClose(idx);
     }
 }
 
@@ -215,11 +239,13 @@ BOOL Server(const BOOL startup)
                 Client(TRUE, TRUE);
 
                 // establish connection to the primary database
-                Timer(wnd.handl, TIMER_DISCOVERY_PULSE, TIMER_DISCOVERY_ELAPSE);
                 if(Database(TRUE) == TRUE)
                 {
-                    FullPollDB();
-                    success = TRUE;
+                    if(FullPollDB() == TRUE)
+                    {
+                        Timer(wnd.handl, TIMER_DISCOVERY_PULSE, TIMER_DISCOVERY_ELAPSE);
+                        success = TRUE;
+                    }
                 }
             }
         }
@@ -247,18 +273,4 @@ BOOL Server(const BOOL startup)
     }
 
     return(success);
-}
-
-/* ensure data packet is valid and from trusted source */
-static BOOL VerifyData(const PACKET *p)
-{
-    BOOL    verified = FALSE;
-
-    if(p != NULL)
-    {
-        /// TODO
-        verified = TRUE;
-    }
-
-    return(verified);
 }
