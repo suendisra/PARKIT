@@ -37,10 +37,11 @@ static void ClientAccept(const NETIDX idx);
 static void ClientRead(const NETIDX idx);
 static void ClientClose(const NETIDX idx);
 static void NetworkProc(const long thread);
+static void NotifyClient(const void *key, const void *value, const void *spot);
 static void ProcessAccept(const NETIDX idx);
 static void ProcessClose(const NETIDX idx);
 static void ProcessRead(const NETIDX idx, const PACKET *p);
-static void ProcessWrite(const NETIDX idx, const SPOT spot);
+static void ProcessWrite(const NETIDX idx, const PACKET *p);
 
 /* perform each action on the queue */
 static void ActionProc(const long thread)
@@ -72,7 +73,7 @@ static void ActionProc(const long thread)
 
                 case ACTION_WRITE:
                     // write data on socket to client
-                    ProcessWrite(a.client, a.pack.data.spot);
+                    ProcessWrite(a.client, &a.pack);
                     break;
             }
         }
@@ -163,6 +164,32 @@ static void NetworkProc(const long thread)
     }
 }
 
+/* for each client in the client map, push action in map to notify of updated spot information */
+static void NotifyClient(const void *key, const void *value, const void *spot)
+{
+    ACTION  a = {0};
+
+    if((key != NULL) && (value != NULL) && (spot != NULL))
+    {
+        // valid, connected client
+        if(*((BOOL*)value) == TRUE)
+        {
+            // prepare action for sending
+            a.action = ACTION_WRITE;
+            a.client = *((INDEX*)key);
+
+            // prepare the packet that will be sent when action is processed
+            Datum(DATUMZONE_UTC, &a.pack.dt);
+            a.pack.type = PKT_TYPE_SPOTINFO;
+            a.pack.id = a.client;
+            MemCopy(&a.pack.data.spot, spot, sizeof(a.pack.data.spot));
+
+            // push into action queue to send
+            QueuePush(&a, &aq);
+        }
+    }
+}
+
 /* new client has been accepted by the server, perform handshake */
 static void ProcessAccept(const NETIDX idx)
 {
@@ -238,8 +265,8 @@ static void ProcessRead(const NETIDX idx, const PACKET *p)
                             // update server's local copy of the information
                             if(SpotInfo(FALSE, (SPOT*)&p->data.spot) == TRUE)
                             {
-                                /// TODO - update all other clients with spot info (essentially stack action queue with commands to processwrite)
                                 // spin up actions to inform all clients
+                                MapForEach(&clients, (void*)&p->data.spot, NotifyClient);
                             }
                         }
                     }
@@ -250,16 +277,14 @@ static void ProcessRead(const NETIDX idx, const PACKET *p)
 }
 
 /* based off of packet contents, perform requested operations */
-static void ProcessWrite(const NETIDX idx, const SPOT spot)
+static void ProcessWrite(const NETIDX idx, const PACKET *p)
 {
     PACKET  pkt = {0};
 
     if(idx >= 0)
     {
-        // prepare outgoing packet
-        Datum(DATUMZONE_UTC, &pkt.dt);
-        pkt.type = PKT_TYPE_SPOTINFO;
-        MemCopy(&pkt.data.spot, &spot, sizeof(pkt.data.spot));
+        // copy packet contents to encrypt
+        MemCopy(&pkt, p, sizeof(pkt));
 
         // encrypt outgoing packet
         if(EncryptXOR(&pkt, sizeof(pkt), app.net.pwd, app.net.plen) == TRUE)

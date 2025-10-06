@@ -96,7 +96,7 @@ void OverrideSpot(const long index)
 {
     if(index >= 0)
     {
-        /// TODO
+        // TODO - prompt user to override spot
     }
 }
 
@@ -122,7 +122,7 @@ void ReserveSpot(const long index)
 {
     if(index >= 0)
     {
-        /// TODO
+        // TODO - prompt user to reserve spot
     }
 }
 
@@ -131,7 +131,7 @@ static void ServerClose(const NETIDX serv)
 {
     NetClose(serv);
     app.net.connected = FALSE;
-    Refresh(wnd.handl);
+    SendMessage(wnd.handl, WM_PAINT, 0, 0);
 }
 
 /* asynchronous connection attempt has returned, handle it */
@@ -144,7 +144,7 @@ static void ServerConnect(const NETIDX serv, const long err)
             // successful connection
             myID = -1;
             app.net.connected = TRUE;
-            Refresh(wnd.handl);
+            SendMessage(wnd.handl, WM_PAINT, 0, 0);
         }else{
             // ran into trouble
             Message(MSG_ERR, wnd.handl, L"%s", ERROR_CONNECT);
@@ -183,7 +183,7 @@ static void ServerRead(const NETIDX serv)
                         }
 
                         // redraw window and release the mutex
-                        Refresh(wnd.handl);
+                        SendMessage(wnd.handl, WM_PAINT, 0, 0);
                         MutexUnlock(mut);
                     }
                 }

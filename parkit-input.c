@@ -14,19 +14,19 @@ void Input(const WPARAM wp, const BOOL keyisdown)
 
     if(KeySet(wp, keyisdown, &kb) == TRUE)
     {
-        if(kb.up['M'] == TRUE)
+        if(kb.up['L'] == TRUE)
         {
-            // TODO
+            app.showlegend ^= TRUE;
         }
 
         // allow user to change mode (client<->server) if desired
         if(kb.up['M'] == TRUE)
         {
             // warn user that this shouldn't be done unless you're the network engineer
-            /// TODO
+            // TODO
 
             // wants to proceed, so do so
-            /// TODO
+            // TODO
         }
 
         // allow the user to exit the application just from Esc or 'X'

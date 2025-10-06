@@ -5,11 +5,13 @@
 */
 #include "parkit.h"
 
-#define SQL_DB_CATALOG          L"parkit"
-#define SQL_DB_TABLE            L"lot-status"
+#define ERROR_CONFIG                L"An error was encountered while attempting to connect to database via ODBC2. Please ensure correct configuration and try again."
 
-#define STORED_PROC_FULL_POLL   L"FullDatabasePoll"
+#define SQL_DB_CATALOG              L"parkit"
+#define SQL_DB_TABLE                L"lot-status"
 
+#define STORED_PROC_FULL_POLL       L"FullDatabasePoll"
+#define STORED_PROC_UPDATE_SPOT     L"UpdateParkingSpot"
 enum TABLECOLUMN
 {
     COLUMN_INVAL = -1,
@@ -55,13 +57,15 @@ BOOL Database(const BOOL standup)
             sql = Sql(wnd.handl, app.db.inst, app.db.user, app.db.pwd);
             if(sql >= 0)
             {
+                // attempt to connect to SQL database
                 if(SqlConnect(sql, TRUE) == TRUE)
                 {
                     SqlSource(sql, SQL_DB_CATALOG, SQL_DB_TABLE);
                     success = TRUE;
                 }else{
-                    /// TODO - instruct user to TRY AGAIN
+                    // clear out database configuration and instruct user to try again
                     MemClear(&app.db, sizeof(app.db));
+                    Message(MSG_ERR, wnd.handl, L"%s", ERROR_CONFIG);
                 }
             }
         }
@@ -121,40 +125,51 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
                 break;
 
             case COLUMN_LVL:
+                // level on which spot is spot
                 Convert(CONVERT_STR_LNG, &sp.level, cell, sizeof(sp.level));
                 break;
 
             case COLUMN_SPOT:
+                // spot on each level
                 Convert(CONVERT_STR_LNG, &sp.spot, cell, sizeof(sp.spot));
                 break;
 
             case COLUMN_EMPTY:
+                // indicates whether spot on the level is empty or not
                 sp.empty = (cell[0] == L'1');
                 break;
 
             case COLUMN_OVERRIDEN:
+                // indicates whether spot on the level was overridden or not
                 sp.overridden = (cell[0] == L'1');
                 break;
 
             case COLUMN_SENSOR:
+                // indicates whether spot on the level has a sensor or not
                 sp.sensor = (cell[0] == L'1');
                 break;
 
             case COLUMN_RESERVE:
+                // this is the reservation date for the parking spot
                 if((cell != NULL) && (cell[0] != CHARNULL))
                 {
-                    // TODO
+                    DatumString(&sp.reserve, TRUE, (wchar_t*)cell, (STR_SMALL * sizeof(wchar_t)));
+                    sp.reserved = TRUE;
                 }
                 break;
 
             case COLUMN_EXPIRES:
+                // this is the expiration date to the reservation for the parking spot
                 if((cell != NULL) && (cell[0] != CHARNULL))
                 {
                     // TODO
+                    OutputDebugString(cell);
+                    OutputDebugString(L"\n");
                 }
                 break;
 
             case COLUMN_VEHICLE:
+                // information on the vehicle, best practice is license plate
                 if((cell != NULL) && (cell[0] != CHARNULL))
                 {
                     StrCopy(sp.vehicle, sizeof(sp.vehicle), cell, 0);
@@ -235,7 +250,23 @@ BOOL UpdateSpot(const SPOT spot)
 {
     BOOL    success = FALSE;
 
-    // TODO
+    // bind all the spot information values for stored proc execution
+    SqlBindInput(sql, SQLBIND_LONG, (void*)&spot.level, sizeof(spot.level));
+    SqlBindInput(sql, SQLBIND_LONG, (void*)&spot.spot, sizeof(spot.spot));
+    SqlBindInput(sql, SQLBIND_BOOL, (void*)&spot.empty, sizeof(spot.empty));
+    SqlBindInput(sql, SQLBIND_BOOL, (void*)&spot.overridden, sizeof(spot.overridden));
+    SqlBindInput(sql, SQLBIND_BOOL, (void*)&spot.sensor, sizeof(spot.sensor));
+    SqlBindInput(sql, SQLBIND_DATUM, (void*)&spot.reserve, sizeof(spot.reserve));
+    SqlBindInput(sql, SQLBIND_DATUM, (void*)&spot.expires, sizeof(spot.expires));
+    SqlBindInput(sql, SQLBIND_TEXT, (void*)spot.vehicle, sizeof(spot.vehicle));
+
+    // execute stored procedure with given parameters
+    if(SqlProc(sql, STORED_PROC_UPDATE_SPOT) == TRUE)
+    {
+        // instruct window to redraw
+        SendMessage(wnd.handl, WM_PAINT, 0, 0);
+        success = TRUE;
+    }
 
     return(success);
 }

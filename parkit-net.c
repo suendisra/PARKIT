@@ -228,7 +228,10 @@ BOOL VerifyPacket(const PACKET *pkt)
                     break;
 
                 case PKT_TYPE_SPOTINFO:
-                    // TODO
+                    if((pkt->data.spot.index >= 0) && (pkt->data.spot.level > 0) && (pkt->data.spot.spot > 0))
+                    {
+                        verified = TRUE;
+                    }
                     break;
             }
         }
