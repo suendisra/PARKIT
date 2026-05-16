@@ -2,7 +2,6 @@
   @file     parkit.h
   @brief    Header file for PARKIT application
   @author   suendisra
-  @version  0.2.7
 */
 #ifndef _PARKIT_H_
 #define _PARKIT_H_
@@ -22,6 +21,17 @@
 
 #include "resource.h"
 
+// bring in appropriate version of library
+#ifndef _DEBUG
+#pragma comment(lib, "GPH.lib")
+#pragma comment(lib, "UTIL.lib")
+#pragma comment(lib, "WIN.lib")
+#else
+#pragma comment(lib, "GPHD.lib")
+#pragma comment(lib, "UTILD.lib")
+#pragma comment(lib, "WIND.lib")
+#endif
+
 #define APP_COPYRIGHT               2025
 #define APP_PATH                    L"parkit.dat"
 #define APP_TITLE                   L"PARKIT"
@@ -31,12 +41,6 @@
 
 #define TIMER_DISCOVERY_ELAPSE      5000
 #define TIMER_DISCOVERY_PULSE       9750
-
-// include needed libraries
-#pragma comment(lib, "UTIL.lib")
-#pragma comment(lib, "GPH.lib")
-#pragma comment(lib, "NET.lib")
-#pragma comment(lib, "WIN.lib")
 
 enum PKTTYPE
 {
