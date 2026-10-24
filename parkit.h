@@ -7,17 +7,16 @@
 #define _PARKIT_H_
 
 // net includes must be first for proper compilation
-#include <net.h>
 #include <net-sql.h>
+#include <net-std.h>
 
-#include <util.h>
-#include <util-map.h>
-#include <util-thread.h>
+#include <util-dsa.h>
+#include <util-str.h>
+#include <util-sync.h>
 
-#include <gph.h>
 #include <gph-font.h>
 
-#include <win.h>
+#include <win-std.h>
 
 #include "resource.h"
 
