@@ -1,18 +1,18 @@
 /**
   @file     parkit-sql.c
   @brief    Source file for PARKIT application
-  @author   suendisra
 */
 #include "parkit.h"
+#include <util-mem.h>
 
 static KEYBOARD kb = {0};
 
 /* handle user input */
-void Input(const WPARAM wp, const BOOL keyisdown)
+void Input(const WORD key, const BOOL down)
 {
     BOOL    input = FALSE;
 
-    if(KeySet(wp, keyisdown, &kb) == TRUE)
+    if(KeySet(key, down, &kb))
     {
         if(kb.up['L'] == TRUE)
         {
@@ -36,9 +36,9 @@ void Input(const WPARAM wp, const BOOL keyisdown)
         }
 
         // redraw screen after user input
-        if(input == TRUE)
+        if(input)
         {
-            SendMessage(wnd.handl, WM_PAINT, 0, 0);
+            Refresh(wnd.handl);
         }
 
         // up-state of key(s) should not be persistent

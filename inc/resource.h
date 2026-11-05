@@ -1,11 +1,13 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by PARKIT.rc
+// Used by C:\PROJECTS\PARKIT\PARKIT.rc
 //
 #define IDI_PARKIT                      101
 #define IDD_NET_CONFIG                  102
 #define IDD_SQL_CONFIG                  103
 #define IDR_PARKIT_KEYS                 104
+#define IDS_TRACE_ENTER                 110
+#define IDS_TRACE_EXIT                  111
 #define IDC_IP_LIST                     1001
 #define IDC_RUN_SERVER                  1002
 #define IDC_INSTANCE                    1003
@@ -32,7 +34,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        110
+#define _APS_NEXT_RESOURCE_VALUE        111
 #define _APS_NEXT_COMMAND_VALUE         40001
 #define _APS_NEXT_CONTROL_VALUE         1003
 #define _APS_NEXT_SYMED_VALUE           101

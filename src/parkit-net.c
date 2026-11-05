@@ -1,9 +1,9 @@
 /**
   @file     parkit-config.c
   @brief    Source file for PARKIT application
-  @author   suendisra
 */
 #include "parkit.h"
+#include <net-cal.h>
 
 #define CONFIG_ERROR        L"An error was encountered while attempting to stand up network operations. Please adjust network configuration values and try again."
 #define CONFIG_PASSWORD     L"The server password for communications must not be empty. Please specify a password."
@@ -14,16 +14,43 @@
 #define UDP_BROADCAST_SERVER    L"%s-%s-%ld"
 
 // static prototypes
-static void ListIP(const INDEX idx, const wchar_t *ip);
+
+/* initialize or tear down winsock */
+BOOL Network(const BOOL start)
+{
+    BOOL    success = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"Network()");
+
+    if(start)
+    {
+        // start up network and CAL operations
+        if(Net(TRUE) && Cal(APP_TITLE))
+        {
+            // start the CAL
+            success = CalStart();
+        }
+    }else{
+        // kill the network operations
+        CalStop();
+        CalKill();
+        success = Net(FALSE);
+    }
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"Network()");
+    return(success);
+}
+
+/*static void ListIP(const INDEX idx, const wchar_t *ip);
 static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
-/* place each IP address found from NetAddrIP into list */
+/* place each IP address found from NetAddrIP into list
 static void ListIP(const INDEX idx, const wchar_t *ip)
 {
     ListInsert(dlg.handl, IDC_IP_LIST, idx, L"%s", ip);
 }
 
-/* initialize or tear down winsock */
+/* initialize or tear down winsock
 BOOL Network(const BOOL start)
 {
     BOOL    success = FALSE;
@@ -48,9 +75,9 @@ BOOL Network(const BOOL start)
                 {
                     // run network configuration dialog
                     MemClear(&dlg, sizeof(dlg));
-                    if(Dialog(NetworkConfigProc, IDD_NET_CONFIG, wnd.handl, &dlg) == TRUE)
+                    if(Dialog(IDD_NET_CONFIG, wnd.handl, &dlg))
                     {
-                        Loop(&dlg);
+                        Loop(dlg);
                     }
                 }
 
@@ -98,7 +125,6 @@ BOOL Network(const BOOL start)
   @param[in]    wp wparam associated with the message
   @param[in]    lp lparam associated with the message
   @return       system return value
-*/
 static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     long    rval = 0;
@@ -189,7 +215,7 @@ static INT_PTR CALLBACK NetworkConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
     return(rval);
 }
 
-/* ensure data packet is valid and from trusted source */
+/* ensure data packet is valid and from trusted source
 BOOL VerifyPacket(const PACKET *pkt)
 {
     DATUM   diff = {0};
@@ -239,3 +265,4 @@ BOOL VerifyPacket(const PACKET *pkt)
 
     return(verified);
 }
+*/

@@ -1,105 +1,56 @@
 /**
   @file     parkit.c
   @brief    Source file for PARKIT application
-  @author   suendisra
 */
 #include "parkit.h"
+
+#include <gph-std.h>
+#include <util-file.h>
+#include <util-mem.h>
+#include <util-std.h>
 
 #define KEY_DELIM   L"\n"
 #define KEY_MAX     32
 
 // static prototypes
-static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 static void Defaults(void);
 static BOOL File(const BOOL load);
 static void Keys(const BOOL encrypt);
+static BOOL Logging(const BOOL load);
 static BOOL Start(void);
 static void Stop(void);
 
 /* wWinMain */
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previnst, LPWSTR cmd, int show)
 {
-    WinInit(instance, previnst, cmd, show);
-
-    // create window and loop it
-    Dims(NULL, 0, NULL, &wnd.client);
-    if(Window(MainWndProc, APP_TITLE, wnd.client, NULL, &wnd) == TRUE)
+    if(Logging(TRUE))
     {
-        // set up looping parameters
-        wnd.mode = LOOP_GET;
-        wnd.init = Start;
-        wnd.stop = Stop;
+        LTRACE(logger, IDS_TRACE_ENTER, L"wWinMain()");
 
-        // loop application window procedure
-        Loop(&wnd);
+        WinInit(instance, previnst, cmd, show);
+
+        // create window and loop it
+        Dims(NULL, 0, NULL, &wnd.client);
+        if(Window(APP_TITLE, wnd.client, NULL, &wnd))
+        {
+            WindowConfig(Start, NULL, Stop, &wnd);
+            WindowFunc(WM_PAINT, (void*)Draw, &wnd);
+            WindowFunc(WM_KEYDOWN, (void*)Input, &wnd);
+            WindowFunc(WM_KEYUP, (void*)Input, &wnd);
+            Loop(wnd);
+        }
+
+        LTRACE(logger, IDS_TRACE_EXIT, L"wWinMain()");
+        Logging(FALSE);
     }
 
     return(0);
-}
-
-/* MainWndProc */
-LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
-{
-    long    rval = 0;
-
-    switch(msg)
-    {
-        case WM_CREATE:
-            TextSet(hwnd, 0, L"%s - %s", APP_TITLE, APP_VERSION);
-            break;
-
-        case WM_ACTIVATE:
-            Focus(hwnd, 0);
-            break;
-
-        case WM_PAINT:
-            Draw(hwnd);
-            break;
-
-        case WM_SYSCOMMAND:
-            switch(LOWORD(wp))
-            {
-                case SC_CLOSE:
-                case SC_DEFAULT:
-                    Kill(hwnd);
-                    break;
-
-                default:
-                    rval = DefWindowProc(hwnd, msg, wp, lp);
-                    break;
-            }
-            break;
-
-        case WM_TIMER:
-            switch(LOWORD(wp))
-            {
-                case TIMER_DISCOVERY_PULSE:
-                    DiscoverMe();
-                    break;
-            }
-            break;
-
-        case WM_KEYDOWN:
-        case WM_KEYUP:
-            Input(wp, (msg == WM_KEYDOWN));
-            break;
-
-        default:
-            rval = DefWindowProc(hwnd, msg, wp, lp);
-            break;
-    }
-
-    return(rval);
 }
 
 /* set up standard client-side defaults */
 static void Defaults(void)
 {
     MemClear(&app, sizeof(app));
-
-    // assign random TCP port with simple increment to UDP port
-    app.net.tcp = (USHORT)Random(NET_MIN_IPV_PORT, (NET_MAX_IPV_PORT - 1));
-    app.net.udp = (app.net.tcp + 1);
     app.showlegend = TRUE;
 }
 
@@ -137,21 +88,51 @@ static BOOL File(const BOOL load)
 static void Keys(const BOOL encrypt)
 {
     long    n = 0;
-    wchar_t  keys[KEY_MAX * STR_NORM] = {0};
+    wchar_t keys[KEY_MAX * STR_NORM] = {0};
     wchar_t temp[STR_NORM] = {0};
 
-    if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)) == TRUE)
+    if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)))
     {
         // text file containing data-at-rest passwords has been opened
         for(n = 0; (n < KEY_MAX); ++n)
         {
             // use each key to encrypt or decrypt the app data as appropriate
-            if(StrParse(temp, sizeof(temp), keys, sizeof(keys), KEY_DELIM, ((encrypt == TRUE) ? (n + 1) : (KEY_MAX - n))) == TRUE)
+            if(StrParse(temp, sizeof(temp), keys, sizeof(keys), KEY_DELIM, (encrypt ? (n + 1) : (KEY_MAX - n))))
             {
                 EncryptXOR(&app, sizeof(app), temp, StrLen(temp, sizeof(temp)));
             }
         }
     }
+}
+
+/* start up or shut down logging capabilites */
+static BOOL Logging(const BOOL load)
+{
+    wchar_t path[STR_PATH] = {0};
+    BOOL    success = FALSE;
+
+    if(load)
+    {
+        // identify the path to log all application textual logs
+        if(FolderApp(path, sizeof(path), L"%s", APP_LOG))
+        {
+            // create the logging object
+            if(Log(path, &logger))
+            {
+                // pass the logging object to all DLLs which need it
+                UtilLogger(logger);
+                GphLogger(logger);
+                NetLogger(logger);
+                WinLogger(logger);
+                success = TRUE;
+            }
+        }
+    }else{
+        // stop the logging process and perform cleanup
+        success = LogKill(&logger);
+    }
+
+    return(success);
 }
 
 /* start application */
@@ -160,19 +141,17 @@ static BOOL Start(void)
     BOOL    success = FALSE;
 
     // load and set window icon
-    if(Resource(RSC_TYPE_ICO, IDI_PARKIT, &wnd.icon, sizeof(wnd.icon)) == TRUE)
+    if(WindowIcon(IDI_PARKIT, &wnd))
     {
-        WindowIcon(wnd.handl, 0, wnd.icon);
-
         // attempt to load system-stored server configuration data
-        if(File(TRUE) == FALSE)
+        if(!File(TRUE))
         {
             // unable to load app data, set defaults
             Defaults();
         }
 
         // start up network operations
-        if(Network(TRUE) == TRUE)
+        if(Network(TRUE))
         {
             // start up GUI
             success = Interface(TRUE);
@@ -185,14 +164,8 @@ static BOOL Start(void)
 /* stop application */
 static void Stop(void)
 {
-    // shut down network operations
-    Network(FALSE);
-
-    // shut down app
-    Interface(FALSE);
-    DestroyIcon(wnd.icon);
-    Kill(wnd.handl);
-
-    // save application settings
     File(FALSE);
+    Network(FALSE);
+    Interface(FALSE);
+    WindowKill(&wnd);
 }

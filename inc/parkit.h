@@ -1,103 +1,34 @@
 /**
   @file     parkit.h
   @brief    Header file for PARKIT application
-  @author   suendisra
 */
 #ifndef _PARKIT_H_
 #define _PARKIT_H_
 
 // net includes must be first for proper compilation
-#include <net-sql.h>
 #include <net-std.h>
-
-#include <util-dsa.h>
 #include <util-str.h>
-#include <util-sync.h>
-
-#include <gph-font.h>
-
 #include <win-std.h>
-
 #include "resource.h"
 
 // bring in appropriate version of library
 #ifndef _DEBUG
 #pragma comment(lib, "GPH.lib")
+#pragma comment(lib, "NET.lib")
 #pragma comment(lib, "UTIL.lib")
 #pragma comment(lib, "WIN.lib")
 #else
 #pragma comment(lib, "GPHD.lib")
+#pragma comment(lib, "NETD.lib")
 #pragma comment(lib, "UTILD.lib")
 #pragma comment(lib, "WIND.lib")
 #endif
 
-#define APP_COPYRIGHT               2025
-#define APP_PATH                    L"parkit.dat"
-#define APP_TITLE                   L"PARKIT"
-#define APP_VERSION                 L"0.2.7"
-
-#define SPOT_BASE_COUNT             64
-
-#define TIMER_DISCOVERY_ELAPSE      5000
-#define TIMER_DISCOVERY_PULSE       9750
-
-enum PKTTYPE
-{
-    PKT_TYPE_INVAL = -1,
-    PKT_TYPE_CAST,
-    PKT_TYPE_HANDSHAKE,
-    PKT_TYPE_SPOTINFO,
-    PKT_TYPE_LAST
-};
-
-// udp packet structure designed to hold broadcast information
-typedef struct
-{
-    USHORT  port;
-    wchar_t title[STR_SMALL];
-    wchar_t version[STR_SMALL];
-}CAST;
-
-// struct for TCP server-client handshake
-typedef struct
-{
-    BOOL    req;
-    BOOL    ack;
-}HAND;
-
-// data for parking spot
-typedef struct
-{
-    DATUM   reserve;
-    DATUM   expires;
-    BOOL    reserved;
-    BOOL    expired;
-
-    INDEX   index;
-    long    level;
-    long    spot;
-
-    wchar_t vehicle[STR_MEDIUM];
-
-    BOOL    empty;
-    BOOL    overridden;
-    BOOL    sensor;
-}SPOT;
-
-typedef struct
-{
-    enum PKTTYPE    type;
-
-    DATUM           dt;
-    INDEX           id;
-
-    union
-    {
-        CAST    cast;
-        SPOT    spot;
-        HAND    shake;
-    }data;
-}PACKET;
+#define APP_COPYRIGHT   2025
+#define APP_LOG         L"plog.txt"
+#define APP_PATH        L"parkit.dat"
+#define APP_TITLE       L"PARKIT"
+#define APP_VERSION     L"0.2.7"
 
 struct
 {
@@ -108,28 +39,11 @@ struct
         wchar_t user[STR_NORM]; // username to connect to database
     }db;
 
-    struct
-    {
-        USHORT  tcp;            // port number for TCP connections
-        USHORT  udp;            // port number for UDP discovery broadcast
-
-        wchar_t ip[STR_NORM];   // system IP address to use for tcp/udp
-        wchar_t pwd[STR_NORM];  // password to connect to server (supplied by network admin during config)
-        long    plen;
-
-        BOOL    server;         // indicates if this device is running as server
-        BOOL    connected;      // indicates if this device, as client, has connected to server
-    }net;
-
     BOOL    showlegend;
 }app;
 
 WNDW    wnd;
-WNDW    dlg;
-
-// necessary sockets for network connections
-NETIDX  disc;
-NETIDX  host;
+LOGGER  logger;
 
 /**
   @fn               BOOL Database(const BOOL standup)
@@ -169,12 +83,12 @@ BOOL Client(const BOOL startup, const BOOL forserver);
 BOOL FullPollDB(void);
 
 /**
-  @fn               void Input(const WPARAM wp, const BOOL keyisdown)
+  @fn               void Input(const WORD key, const BOOL down)
   @brief            handle user input
   @param[in]        wp wparam to WM_KEYDOWN and WM_KEYUP messages
   @param[in]        keyisdown if handling WM_KEYDOWN message, this is true, otherwise FALSE
 */
-void Input(const WPARAM wp, const BOOL keyisdown);
+void Input(const WORD key, const BOOL down);
 
 /**
   @fn               BOOL Interface(const BOOL start)
@@ -218,14 +132,12 @@ BOOL Server(const BOOL startup);
   @param[in]        get if TRUE, obtain spot information, if FALSE, push spot information
   @param[in out]    spot the information to pass back to caller
   @return           TRUE if information was retrieved, FALSE otherwise
-*/
 BOOL SpotInfo(const BOOL get, SPOT *spot);
 
 /**
   @fn               BOOL VerifyPacket(const PACKET *p)
   @brief            pkt pointer to packet contents to verify
   @return           if true packet is valid, false otherwise
-*/
 BOOL VerifyPacket(const PACKET *pkt);
 
 /**
@@ -233,7 +145,7 @@ BOOL VerifyPacket(const PACKET *pkt);
   @brief            update database information for given spot
   @param[in]        spot information for given spot
   @return           true if database was successfully updated, false otherwise
-*/
 BOOL UpdateSpot(const SPOT spot);
+*/
 
 #endif

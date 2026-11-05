@@ -1,9 +1,10 @@
 /**
   @file     parkit-sql.c
   @brief    Source file for PARKIT application
-  @author   suendisra
 */
 #include "parkit.h"
+#include <net-sql.h>
+#include <util-mem.h>
 
 #define ERROR_CONFIG                L"An error was encountered while attempting to connect to database via ODBC2. Please ensure correct configuration and try again."
 
@@ -12,6 +13,7 @@
 
 #define STORED_PROC_FULL_POLL       L"FullDatabasePoll"
 #define STORED_PROC_UPDATE_SPOT     L"UpdateParkingSpot"
+
 enum TABLECOLUMN
 {
     COLUMN_INVAL = -1,
@@ -27,38 +29,36 @@ enum TABLECOLUMN
     COLUMN_LAST
 };
 
-static SQLIDX   sql = -1;
-
-static SPOT     sp = {0};
+static SQL  sql = NULL;
+static WNDW dlg = {0};
 
 // static prototypes
 static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata);
-static INT_PTR CALLBACK SqlConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
 /* set up connection to the sql db server */
 BOOL Database(const BOOL standup)
 {
     BOOL    success = FALSE;
 
-    if(standup == TRUE)
+    if(standup)
     {
         // if database connection hasn't been configured, prompt user to configure it
         if(app.db.inst[0] == CHARNULL)
         {
-            if(Dialog(SqlConfigProc, IDD_SQL_CONFIG, wnd.handl, &dlg) == TRUE)
+            if(Dialog(IDD_SQL_CONFIG, wnd.handl, &dlg))
             {
-                Loop(&dlg);
+                Loop(dlg);
             }
         }
 
         // attempt connection with given (or stored) parameters
         if(app.db.inst[0] != CHARNULL)
         {
-            sql = Sql(wnd.handl, app.db.inst, app.db.user, app.db.pwd);
-            if(sql >= 0)
+            if(Sql(wnd.handl, app.db.inst, &sql))
             {
                 // attempt to connect to SQL database
-                if(SqlConnect(sql, TRUE) == TRUE)
+                SqlConfig(&sql, app.db.user, app.db.pwd);
+                if(SqlConnect(sql, TRUE))
                 {
                     SqlSource(sql, SQL_DB_CATALOG, SQL_DB_TABLE);
                     success = TRUE;
@@ -85,15 +85,10 @@ BOOL FullPollDB(void)
     BOOL    success = FALSE;
 
     // perform stored procedure to get all parking lot information
-    if(SqlProc(sql, STORED_PROC_FULL_POLL) == TRUE)
+    if(SqlProc(sql, STORED_PROC_FULL_POLL, NULL, ProcessPollResults))
     {
-        // loop through returned data
-        if(SqlLoop(sql, NULL, TRUE, ProcessPollResults) == TRUE)
-        {
-            // instruct window to redraw
-            SendMessage(wnd.handl, WM_PAINT, 0, 0);
-            success = TRUE;
-        }
+        Refresh(wnd.handl);
+        success = TRUE;
     }
 
     return(success);
@@ -110,12 +105,10 @@ BOOL FullPollDB(void)
 */
 static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata)
 {
-    // ignore user data passed in
-    if(userdata != NULL){}
-
     // perform parameter checks
-    if((row >= 0) && (col >= 0))
+    if((row >= 0) && (col >= 0) && (cell != NULL) && (userdata == NULL))
     {
+/*
         switch(col)
         {
             case COLUMN_ID:
@@ -179,6 +172,7 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
                 SpotInfo(FALSE, &sp);
                 break;
         }
+*/
     }
 
     return(TRUE);
@@ -192,7 +186,6 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
   @param[in]    wp wparam associated with the message
   @param[in]    lp lparam associated with the message
   @return       system return value
-*/
 static INT_PTR CALLBACK SqlConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     long    rval = 0;
@@ -245,7 +238,7 @@ static INT_PTR CALLBACK SqlConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     return(rval);
 }
 
-/* update database information for given spot */
+/* update database information for given spot
 BOOL UpdateSpot(const SPOT spot)
 {
     BOOL    success = FALSE;
@@ -270,3 +263,4 @@ BOOL UpdateSpot(const SPOT spot)
 
     return(success);
 }
+*/

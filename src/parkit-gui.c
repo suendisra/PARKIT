@@ -1,9 +1,11 @@
 /**
   @file     parkit-gui.c
   @brief    Source file for PARKIT application
-  @author   suendisra
 */
 #include "parkit.h"
+#include <gph-font.h>
+#include <gph-grid.h>
+#include <gph-shape.h>
 
 #define FONT_NAME                   L"Consolas"
 #define FONT_SIZE                   24
@@ -37,7 +39,7 @@ static void DrawScreen(void);
 /* draw primary application screen */
 void Draw(const HWND parent)
 {
-    if(GphPaint(&gph, parent) == TRUE)
+    if(GphPaint(gph, parent))
     {
         DrawInfo();
         DrawScreen();
@@ -47,7 +49,7 @@ void Draw(const HWND parent)
 
         // blit and display
         GphBlit(gph);
-        GphPaint(&gph, parent);
+        GphPaint(gph, parent);
     }
 }
 
@@ -60,15 +62,15 @@ static void DrawInfo(void)
     GphClear(gph, &info.dims, GCOAL);
     GphFontColor(gph, GGRAY, GTRANS);
 
-    if(app.net.server == TRUE)
-    {
-        StrFormat(temp, sizeof(temp), INFO_SERVER, app.net.server);
-    }else{
-        StrFormat(temp, sizeof(temp), INFO_CLIENT, app.net.connected);
-    }
+    //if(app.net.server == TRUE)
+    //{
+    //    StrFormat(temp, sizeof(temp), INFO_SERVER, app.net.server);
+    //}else{
+    //    StrFormat(temp, sizeof(temp), INFO_CLIENT, app.net.connected);
+    //}
 
     CharReplace(temp, sizeof(temp), CHARPIPE, CHARNULL);
-    GphList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);
+    GridList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);
 }
 
 /* draw legend of colors to indicate properties of each parking spot portrayed */
@@ -76,7 +78,7 @@ static void DrawLegend(void)
 {
     QUAD    dims = screen.dims;
 
-    if(app.showlegend == TRUE)
+    if(app.showlegend)
     {
         // draw legend background
         QuadScale(TRUE, RATIO_LEGEND, RATIO_LEGEND, &dims);
@@ -88,35 +90,35 @@ static void DrawLegend(void)
 }
 
 /* draw contents of each parking spot in the  */
-static BOOL DrawParkingSpot(const QUAD cell, const long index)
+static BOOL DrawParkingSpot(const QUAD cell, const INDEX index, void *userdata)
 {
-    SPOT    spot = {0};
-    long    idx = 0;
-    wchar_t temp[STR_NORM] = {0};
+    //SPOT    spot = {0};
+    //long    idx = 0;
+    //wchar_t temp[STR_NORM] = {0};
 
-    // retrieve information regarding this spot
-    spot.index = index;
-    if(SpotInfo(TRUE, &spot) == TRUE)
-    {
-        // draw a border for this parking lot spot
-        idx = ((spot.reserved == TRUE) ? coloroffset : 0);
-        idx += ((spot.empty == TRUE) * 1);
-        idx += ((spot.overridden == TRUE) * 2);
-        idx += ((spot.expired == TRUE) * 4);
+    //// retrieve information regarding this spot
+    //spot.index = index;
+    //if(SpotInfo(TRUE, &spot) == TRUE)
+    //{
+    //    // draw a border for this parking lot spot
+    //    idx = ((spot.reserved == TRUE) ? coloroffset : 0);
+    //    idx += ((spot.empty == TRUE) * 1);
+    //    idx += ((spot.overridden == TRUE) * 2);
+    //    idx += ((spot.expired == TRUE) * 4);
 
-        // draw color-coded status background rect
-        GphStock(gph, scolor.color[idx], GGRAY);
-        GphRect(gph, cell, SCREEN_ROUND);
+    //    // draw color-coded status background rect
+    //    GphStock(gph, scolor.color[idx], GGRAY);
+    //    GphRect(gph, cell, SCREEN_ROUND);
 
-        // draw text for the spot
-        GphFontColor(gph, GBLACK, GTRANS);
-        StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.index, L"", spot.vehicle);
-        GphText(gph, &cell, ALIGN_CENTER2D, L"%s", temp);
-    }else{
-        // no information, draw empty spot
-        GphStock(gph, GTRANS, GGRAY);
-        GphRect(gph, cell, SCREEN_ROUND);
-    }
+    //    // draw text for the spot
+    //    GphFontColor(gph, GBLACK, GTRANS);
+    //    StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.index, L"", spot.vehicle);
+    //    GphText(gph, &cell, ALIGN_CENTER2D, L"%s", temp);
+    //}else{
+    //    // no information, draw empty spot
+    //    GphStock(gph, GTRANS, GGRAY);
+    //    GphRect(gph, cell, SCREEN_ROUND);
+    //}
 
     return(TRUE);
 }
@@ -126,7 +128,7 @@ static void DrawScreen(void)
 {
     // clear the background and info bar
     GphClear(gph, &screen.dims, GBLACK);
-    GridFunc(screen, DrawParkingSpot);
+    GridFunc(screen, NULL, DrawParkingSpot);
     GphBlit(gph);
 }
 
@@ -136,28 +138,28 @@ BOOL Interface(const BOOL start)
     QUAD    dims[2] = {0};
     BOOL    success = FALSE;
 
-    if(start == TRUE)
+    if(start)
     {
         // divide screen into main drawing area and informational bar
         QuadDivideH(wnd.client, RATIO_SCREEN, &dims[0], &dims[1]);
 
         // create the Windows GDI object
-        if(Gph(wnd.handl, wnd.client, &gph) == TRUE)
+        if(Gph(wnd.handl, wnd.client, &gph))
         {
             // create primary font for display
             font = FontGDI(FONT_NAME, FONT_SIZE, FALSE, FALSE, FALSE);
             if(font >= 0)
             {
                 // set the font text and color
-                GphFont(&gph, font);
+                GphFontSet(gph, font);
 
                 // create a grid for the textual information
-                Grid(&gph, &dims[0], SCREEN_ROWS, SCREEN_COLS, HEADER_NONE, &screen);
-                Grid(&gph, &dims[1], INFO_ROWS, INFO_COLS, HEADER_NONE, &info);
+                //Grid(&gph, &dims[0], SCREEN_ROWS, SCREEN_COLS, HEADER_NONE, &screen);
+                //Grid(&gph, &dims[1], INFO_ROWS, INFO_COLS, HEADER_NONE, &info);
 
                 // set up colors for quick and easy understanding of parking spot status
-                PoolDefault(&scolor);
-                coloroffset = (scolor.count / 2);
+                Pool(&scolor);
+                coloroffset = (PoolCount(scolor) / 2);
                 success = TRUE;
             }
         }
