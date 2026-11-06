@@ -17,22 +17,13 @@ void Input(const WORD key, const BOOL down)
         if(kb.up['L'] == TRUE)
         {
             app.showlegend ^= TRUE;
-        }
-
-        // allow user to change mode (client<->server) if desired
-        if(kb.up['M'] == TRUE)
-        {
-            // warn user that this shouldn't be done unless you're the network engineer
-            // TODO
-
-            // wants to proceed, so do so
-            // TODO
+            input = TRUE;
         }
 
         // allow the user to exit the application just from Esc or 'X'
         if((kb.up['X'] == TRUE) || (kb.up[VK_ESCAPE] == TRUE))
         {
-            SendMessage(wnd.handl, WM_SYSCOMMAND, SC_CLOSE, 0);
+            Quit(wnd.handl);
         }
 
         // redraw screen after user input
