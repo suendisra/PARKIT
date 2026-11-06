@@ -61,7 +61,7 @@ BOOL Database(const BOOL standup)
     }else{
         // destroy sql connection
         SqlConnect(sql, FALSE);
-        SqlKill(sql);
+        SqlKill(&sql);
         success = TRUE;
     }
 
@@ -89,8 +89,8 @@ static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
 
             case IDOK:
                 // pull out the configuration values and allow connection attempt
-                app.server = ButtonChecked(wnd.handl, IDC_RUN_AS_SERVER);
-                app.backup = ButtonChecked(wnd.handl, IDC_RUN_AS_BACKUP);
+                app.server = ButtonChecked(hwnd, IDC_RUN_AS_SERVER);
+                app.backup = ButtonChecked(hwnd, IDC_RUN_AS_BACKUP);
                 TextGet(hwnd, IDC_INSTANCE, app.db.inst, sizeof(app.db.inst));
                 TextGet(hwnd, IDC_USER, app.db.user, sizeof(app.db.user));
                 TextGet(hwnd, IDC_PASSWORD, app.db.pwd, sizeof(app.db.pwd));
@@ -119,7 +119,7 @@ static BOOL DbConnect(void)
             if(SqlConnect(sql, TRUE))
             {
                 SqlSource(sql, SQL_DB_CATALOG, SQL_DB_TABLE);
-                success = TRUE;
+                success = FullPollDB();
             }else{
                 // clear out database configuration and instruct user to try again
                 MemClear(&app.db, sizeof(app.db));
