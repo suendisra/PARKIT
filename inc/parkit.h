@@ -25,7 +25,7 @@
 #endif
 
 #define APP_COPYRIGHT   2025
-#define APP_LOG         L"plog.txt"
+#define APP_LOG         L"parkit.log"
 #define APP_PATH        L"parkit.dat"
 #define APP_TITLE       L"PARKIT"
 #define APP_VERSION     L"0.2.7"
@@ -39,6 +39,8 @@ struct
         wchar_t user[STR_NORM]; // username to connect to database
     }db;
 
+    BOOL    backup;
+    BOOL    server;
     BOOL    showlegend;
 }app;
 
