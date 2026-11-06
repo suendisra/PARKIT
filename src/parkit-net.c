@@ -27,7 +27,7 @@ BOOL Network(const BOOL start)
         success = Net(FALSE);
     }
 
-    LTRACE(logger, IDS_TRACE_ENTER, L"Network()");
+    LTRACE(logger, IDS_TRACE_EXIT, L"Network()");
     return(success);
 }
 
