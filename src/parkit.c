@@ -8,6 +8,7 @@
 #include <util-file.h>
 #include <util-mem.h>
 #include <util-std.h>
+#include <win-wait.h>
 
 #define KEY_DELIM   L"\n"
 #define KEY_MAX     32
@@ -47,10 +48,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previnst, LPWSTR cmd, int show
     return(0);
 }
 
-/* set up standard client-side defaults */
+/* set up standard defaults */
 static void Defaults(void)
 {
     MemClear(&app, sizeof(app));
+    app.server = TRUE;
     app.showlegend = TRUE;
 }
 
@@ -62,13 +64,13 @@ static BOOL File(const BOOL load)
     BOOL    success = FALSE;
 
     // get system path for save data
-    if(FolderApp(path, sizeof(path), L"%s", APP_PATH) == TRUE)
+    if(FolderApp(path, sizeof(path), L"%s", APP_PATH))
     {
         // open save data
-        if(FileOpen(((load == TRUE) ? FILE_READ : FILE_WRITE), path, &cf) == TRUE)
+        if(FileOpen((load ? FILE_READ : FILE_WRITE), path, &cf))
         {
             // iterate through each file_save or file_load call for demos
-            if(load == TRUE)
+            if(load)
             {
                 success = (FileRead(cf, &app, sizeof(app)) == sizeof(app));
                 Keys(FALSE);
@@ -151,7 +153,7 @@ static BOOL Start(void)
         }
 
         // start up network operations
-        if(Network(TRUE))
+        if(Database(TRUE) && Network(TRUE))
         {
             // start up GUI
             success = Interface(TRUE);
@@ -164,8 +166,9 @@ static BOOL Start(void)
 /* stop application */
 static void Stop(void)
 {
-    File(FALSE);
+    //File(FALSE);
     Network(FALSE);
+    Database(FALSE);
     Interface(FALSE);
     WindowKill(&wnd);
 }

@@ -33,6 +33,9 @@ static SQL  sql = NULL;
 static WNDW dlg = {0};
 
 // static prototypes
+static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp);
+static BOOL DbConnect(void);
+static BOOL DbStart(void);
 static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata);
 
 /* set up connection to the sql db server */
@@ -43,32 +46,18 @@ BOOL Database(const BOOL standup)
     if(standup)
     {
         // if database connection hasn't been configured, prompt user to configure it
-        if(app.db.inst[0] == CHARNULL)
+        if((app.server || app.backup) && (app.db.inst[0] == CHARNULL))
         {
-            if(Dialog(IDD_SQL_CONFIG, wnd.handl, &dlg))
+            if(Dialog(IDD_CONFIG, wnd.handl, &dlg))
             {
+                WindowConfig(DbStart, NULL, NULL, &dlg);
+                WindowFunc(WM_COMMAND, (void*)DbCommand, &dlg);
                 Loop(dlg);
             }
         }
 
-        // attempt connection with given (or stored) parameters
-        if(app.db.inst[0] != CHARNULL)
-        {
-            if(Sql(wnd.handl, app.db.inst, &sql))
-            {
-                // attempt to connect to SQL database
-                SqlConfig(&sql, app.db.user, app.db.pwd);
-                if(SqlConnect(sql, TRUE))
-                {
-                    SqlSource(sql, SQL_DB_CATALOG, SQL_DB_TABLE);
-                    success = TRUE;
-                }else{
-                    // clear out database configuration and instruct user to try again
-                    MemClear(&app.db, sizeof(app.db));
-                    Message(MSG_ERR, wnd.handl, L"%s", ERROR_CONFIG);
-                }
-            }
-        }
+        // all is configured, attempt the connection
+        success = DbConnect();
     }else{
         // destroy sql connection
         SqlConnect(sql, FALSE);
@@ -77,6 +66,82 @@ BOOL Database(const BOOL standup)
     }
 
     return(success);
+}
+
+/* handle command events for the database-network parameters dialog */
+static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
+{
+    BOOL    checked = FALSE;
+
+    if((hwnd != NULL) && (wp > 0) && (lp >= 0))
+    {
+        switch(LOWORD(wp))
+        {
+            case IDC_RUN_AS_SERVER:
+                // only allow backup status if also acting as a server
+                checked = ButtonChecked(hwnd, IDC_RUN_AS_SERVER);
+                ButtonCheck(hwnd, IDC_RUN_AS_BACKUP, app.backup);
+                Enable(hwnd, IDC_RUN_AS_BACKUP, checked);
+                Enable(hwnd, IDC_INSTANCE, checked);
+                Enable(hwnd, IDC_USER, checked);
+                Enable(hwnd, IDC_PASSWORD, checked);
+                break;
+
+            case IDOK:
+                // pull out the configuration values and allow connection attempt
+                app.server = ButtonChecked(wnd.handl, IDC_RUN_AS_SERVER);
+                app.backup = ButtonChecked(wnd.handl, IDC_RUN_AS_BACKUP);
+                TextGet(hwnd, IDC_INSTANCE, app.db.inst, sizeof(app.db.inst));
+                TextGet(hwnd, IDC_USER, app.db.user, sizeof(app.db.user));
+                TextGet(hwnd, IDC_PASSWORD, app.db.pwd, sizeof(app.db.pwd));
+
+                // intentional fall-through
+            case IDCANCEL:
+                Quit(hwnd);
+                break;
+        }
+    }
+
+    return(TRUE);
+}
+
+/* attempt connection with given (or stored) parameters */
+static BOOL DbConnect(void)
+{
+    BOOL    success = !app.server;
+
+    if((app.server || app.backup) && (app.db.inst[0] != CHARNULL))
+    {
+        if(Sql(wnd.handl, app.db.inst, &sql))
+        {
+            // attempt to connect to SQL database
+            SqlConfig(&sql, app.db.user, app.db.pwd);
+            if(SqlConnect(sql, TRUE))
+            {
+                SqlSource(sql, SQL_DB_CATALOG, SQL_DB_TABLE);
+                success = TRUE;
+            }else{
+                // clear out database configuration and instruct user to try again
+                MemClear(&app.db, sizeof(app.db));
+                Message(MSG_ERR, wnd.handl, L"%s", ERROR_CONFIG);
+            }
+        }
+    }
+
+    return(success);
+}
+
+/* configure database and network parameters dialog with given values */
+static BOOL DbStart(void)
+{
+    ButtonCheck(wnd.handl, IDC_RUN_AS_SERVER, app.server);
+    ButtonCheck(wnd.handl, IDC_RUN_AS_BACKUP, app.backup);
+    TextSet(wnd.handl, IDC_INSTANCE, L"%s", app.db.inst);
+    TextSet(wnd.handl, IDC_CATALOG, L"%s", SQL_DB_CATALOG);
+    TextSet(wnd.handl, IDC_TABLE, L"%s", SQL_DB_TABLE);
+    TextSet(wnd.handl, IDC_USER, L"%s", app.db.user);
+    TextSet(wnd.handl, IDC_PASSWORD, L"%s", app.db.pwd);
+    return(TRUE);
 }
 
 /* retrieve all database values for parking lot statuses */
@@ -176,66 +241,6 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
     }
 
     return(TRUE);
-}
-
-/**
-  @fn           static INT_PTR CALLBACK SqlConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
-  @brief        Main window procedure
-  @param[in]    hwnd handle to window whose proc is being processed
-  @param[in]    msg windows message to be processed
-  @param[in]    wp wparam associated with the message
-  @param[in]    lp lparam associated with the message
-  @return       system return value
-static INT_PTR CALLBACK SqlConfigProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
-{
-    long    rval = 0;
-
-    switch(msg)
-    {
-        case WM_INITDIALOG:
-            // center on main window
-            Center(hwnd, 0, NULL);
-
-            // set in whatever textual values are already there
-            TextSet(hwnd, IDC_INSTANCE, L"%s", app.db.inst);
-            TextSet(hwnd, IDC_CATALOG, L"%s", SQL_DB_CATALOG);
-            TextSet(hwnd, IDC_TABLE, L"%s", SQL_DB_TABLE);
-            TextSet(hwnd, IDC_USER, L"%s", app.db.user);
-            TextSet(hwnd, IDC_PASSWORD, L"%s", app.db.pwd);
-            break;
-
-        case WM_SYSCOMMAND:
-            switch(LOWORD(wp))
-            {
-                case SC_CLOSE:
-                case SC_DEFAULT:
-                    Kill(hwnd);
-                    break;
-
-                default:
-                    rval = DefWindowProc(hwnd, msg, wp, lp);
-                    break;
-            }
-            break;
-
-        case WM_COMMAND:
-            switch(LOWORD(wp))
-            {
-                case IDOK:
-                    // pull out the configuration values and allow connection attempt
-                    TextGet(hwnd, IDC_INSTANCE, app.db.inst, sizeof(app.db.inst));
-                    TextGet(hwnd, IDC_USER, app.db.user, sizeof(app.db.user));
-                    TextGet(hwnd, IDC_PASSWORD, app.db.pwd, sizeof(app.db.pwd));
-
-                    // intentional fall-through to close window
-                case IDCANCEL:
-                    SendMessage(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
-                    break;
-            }
-            break;
-    }
-
-    return(rval);
 }
 
 /* update database information for given spot
