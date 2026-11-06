@@ -154,8 +154,11 @@ BOOL Interface(const BOOL start)
                 GphFontSet(gph, font);
 
                 // create a grid for the textual information
-                //Grid(&gph, &dims[0], SCREEN_ROWS, SCREEN_COLS, HEADER_NONE, &screen);
-                //Grid(&gph, &dims[1], INFO_ROWS, INFO_COLS, HEADER_NONE, &info);
+                if(Grid(gph, &dims[0], &screen) && Grid(gph, &dims[1], &info))
+                {
+                    GridConfig(&screen, HEADER_NONE, SCREEN_ROWS, SCREEN_COLS);
+                    GridConfig(&info, HEADER_NONE, INFO_ROWS, INFO_COLS);
+                }
 
                 // set up colors for quick and easy understanding of parking spot status
                 Pool(&scolor);
