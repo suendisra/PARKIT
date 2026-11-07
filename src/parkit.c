@@ -38,6 +38,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previnst, LPWSTR cmd, int show
             WindowFunc(WM_PAINT, (void*)Draw, &wnd);
             WindowFunc(WM_KEYDOWN, (void*)Input, &wnd);
             WindowFunc(WM_KEYUP, (void*)Input, &wnd);
+            WindowIcon(IDI_PARKIT, &wnd);
             Loop(wnd);
         }
 
@@ -142,28 +143,24 @@ static BOOL Start(void)
 {
     BOOL    success = FALSE;
 
-    // load and set window icon
-    if(WindowIcon(IDI_PARKIT, &wnd))
+    // attempt to load system-stored server configuration data
+    if(!File(TRUE))
     {
-        // attempt to load system-stored server configuration data
-        if(!File(TRUE))
-        {
-            // unable to load app data, set defaults
-            Defaults();
-        }
+        // unable to load app data, set defaults
+        Defaults();
+    }
 
-        // start up application logic
-        if(Logic(TRUE))
+    // start up application logic
+    if(Logic(TRUE))
+    {
+        // start up database operations
+        if(Database(TRUE))
         {
-            // start up database operations
-            if(Database(TRUE))
+            // start up network operations
+            if(Network(TRUE))
             {
-                // start up network operations
-                if(Network(TRUE))
-                {
-                    // start up GUI
-                    success = Interface(TRUE);
-                }
+                // start up GUI
+                success = Interface(TRUE);
             }
         }
     }
