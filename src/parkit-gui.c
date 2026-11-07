@@ -11,9 +11,9 @@
 #define FONT_SIZE                   24
 
 #define INFO_COLS                   8
-#define INFO_CLIENT                 L"[L]EGEND| | | | | |[M]ODE |SRV(%ld)|"
+#define INFO_CLIENT                 L"[L]EGEND| | | | | | | |"
 #define INFO_ROWS                   1
-#define INFO_SERVER                 L"[L]EGEND| | | | | |[M]ODE |DB(%ld)|"
+#define INFO_SERVER                 L"[L]EGEND| | | | | | |DB(%ld)|"
 
 #define RATIO_LEGEND                0.55    // divisional value for legend overlap display
 #define RATIO_SCREEN                0.96    // divisional value for main screen and info bar
@@ -62,12 +62,12 @@ static void DrawInfo(void)
     GphClear(gph, &info.dims, GCOAL);
     GphFontColor(gph, GGRAY, GTRANS);
 
-    //if(app.net.server == TRUE)
-    //{
-    //    StrFormat(temp, sizeof(temp), INFO_SERVER, app.net.server);
-    //}else{
-    //    StrFormat(temp, sizeof(temp), INFO_CLIENT, app.net.connected);
-    //}
+    if(app.server)
+    {
+        StrFormat(temp, sizeof(temp), INFO_SERVER, app.server);
+    }else{
+        StrFormat(temp, sizeof(temp), INFO_CLIENT);
+    }
 
     CharReplace(temp, sizeof(temp), CHARPIPE, CHARNULL);
     GridList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);
@@ -92,33 +92,33 @@ static void DrawLegend(void)
 /* draw contents of each parking spot in the  */
 static BOOL DrawParkingSpot(const QUAD cell, const INDEX index, void *userdata)
 {
-    //SPOT    spot = {0};
-    //long    idx = 0;
-    //wchar_t temp[STR_NORM] = {0};
+    SPOT    spot = {0};
+    long    idx = 0;
 
-    //// retrieve information regarding this spot
-    //spot.index = index;
-    //if(SpotInfo(TRUE, &spot) == TRUE)
-    //{
-    //    // draw a border for this parking lot spot
-    //    idx = ((spot.reserved == TRUE) ? coloroffset : 0);
-    //    idx += ((spot.empty == TRUE) * 1);
-    //    idx += ((spot.overridden == TRUE) * 2);
-    //    idx += ((spot.expired == TRUE) * 4);
+    if((cell.cx > 0) && (cell.cy > 0) && (index >= 0) && (userdata == NULL))
+    {
+        // retrieve information regarding this spot
+        if(SpotInfo(index, TRUE, &spot))
+        {
+            // draw a border for this parking lot spot
+            idx = (spot.reserved ? coloroffset : 0);
+            idx += (spot.empty * 1);
+            idx += (spot.overridden * 2);
+            idx += (spot.expired * 4);
 
-    //    // draw color-coded status background rect
-    //    GphStock(gph, scolor.color[idx], GGRAY);
-    //    GphRect(gph, cell, SCREEN_ROUND);
+            // draw color-coded status background rect
+            // todo - GphStock(gph, scolor.color[idx], GGRAY);
+            GphRect(gph, cell, SCREEN_ROUND);
 
-    //    // draw text for the spot
-    //    GphFontColor(gph, GBLACK, GTRANS);
-    //    StrFormat(temp, sizeof(temp), SPOT_INFO, spot.level, spot.index, L"", spot.vehicle);
-    //    GphText(gph, &cell, ALIGN_CENTER2D, L"%s", temp);
-    //}else{
-    //    // no information, draw empty spot
-    //    GphStock(gph, GTRANS, GGRAY);
-    //    GphRect(gph, cell, SCREEN_ROUND);
-    //}
+            // draw text for the spot
+            GphFontColor(gph, GBLACK, GTRANS);
+            GphText(gph, &cell, ALIGN_CENTER2D, SPOT_INFO, spot.level, index, L"", spot.vehicle);
+        }else{
+            // no information, draw empty spot
+            GphStock(gph, GTRANS, GGRAY);
+            GphRect(gph, cell, SCREEN_ROUND);
+        }
+    }
 
     return(TRUE);
 }
