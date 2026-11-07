@@ -8,16 +8,18 @@
 /* initialize or tear down winsock */
 BOOL Network(const BOOL start)
 {
-    BOOL    success = FALSE;
+    enum CALMODE    mode = (app.server ? CALMODE_SERVER : CALMODE_CLIENT);
+    BOOL            success = FALSE;
 
     LTRACE(logger, IDS_TRACE_ENTER, L"Network()");
 
     if(start)
     {
         // start up network and CAL operations
-        if(Net(TRUE) && Cal((app.server ? CALMODE_SERVER : CALMODE_CLIENT), APP_TITLE))
+        if(Net(TRUE) && Cal(mode, APP_TITLE))
         {
             // start the CAL
+            CalTransactID(GetTransactionID);
             success = CalStart();
         }
     }else{
