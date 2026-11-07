@@ -37,6 +37,7 @@ enum TABLECOLUMN
 static WNDW dlg = {0};
 static SQL  sql = NULL;
 static SRW  transact = NULL;
+static BOOL attempt = FALSE;
 
 // static prototypes
 static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp);
@@ -51,26 +52,25 @@ BOOL Database(const BOOL standup)
 
     if(standup)
     {
-        // if database connection hasn't been configured, prompt user to configure it
-        if(app.server && (app.db.inst[0] == CHARNULL))
-        {
-            if(Dialog(IDD_CONFIG, wnd.handl, &dlg))
-            {
-                WindowConfig(DbStart, NULL, NULL, &dlg);
-                WindowFunc(WM_COMMAND, (void*)DbCommand, &dlg);
-                Loop(dlg);
-            }
-        }
-
         if(Srw(FALSE, &transact))
         {
-            // all is configured, attempt the connection
-            success = DbConnect();
-            if(!success)
+            // if database connection hasn't been configured, prompt user to configure it
+            attempt = ((app.server && (app.db.inst[0] != CHARNULL)) || !app.server);
+            if(!attempt)
             {
-                // clear out database values so connection prompt is shown again
-                MemClear(&app.db, sizeof(app.db));
-                Message(MSG_ERR, wnd.handl, L"%s", ERROR_CONFIG);
+                if(Dialog(IDD_CONFIG, wnd.handl, &dlg))
+                {
+                    WindowConfig(DbStart, NULL, NULL, &dlg);
+                    WindowFunc(WM_COMMAND, (void*)DbCommand, &dlg);
+                    WindowIcon(IDI_PARKIT, &dlg);
+                    Loop(dlg);
+                }
+            }
+
+            if(attempt)
+            {
+                // all is configured, attempt the connection
+                success = DbConnect();
             }
         }
     }else{
@@ -93,10 +93,10 @@ static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
     {
         switch(LOWORD(wp))
         {
+            case IDC_RUN_AS_CLIENT:
             case IDC_RUN_AS_SERVER:
                 // only allow backup status if also acting as a server
                 checked = ButtonChecked(hwnd, IDC_RUN_AS_SERVER);
-                Enable(hwnd, IDC_RUN_AS_BACKUP, checked);
                 Enable(hwnd, IDC_INSTANCE, checked);
                 Enable(hwnd, IDC_USER, checked);
                 Enable(hwnd, IDC_PASSWORD, checked);
@@ -116,8 +116,8 @@ static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
                 TextGet(hwnd, IDC_USER, app.db.user, sizeof(app.db.user));
                 TextGet(hwnd, IDC_PASSWORD, app.db.pwd, sizeof(app.db.pwd));
 
-                // intentional fall-through
-            case IDCANCEL:
+            case IDCANCEL: // intentional fall-through
+                attempt = (LOWORD(wp) == IDOK);
                 Quit(hwnd);
                 break;
         }
@@ -166,12 +166,13 @@ static BOOL DbConnect(void)
 /* configure database and network parameters dialog with given values */
 static BOOL DbStart(void)
 {
-    ButtonCheck(wnd.handl, IDC_RUN_AS_SERVER, app.server);
-    TextSet(wnd.handl, IDC_INSTANCE, L"%s", app.db.inst);
-    TextSet(wnd.handl, IDC_CATALOG, L"%s", SQL_DB_CATALOG);
-    TextSet(wnd.handl, IDC_TABLE, L"%s", SQL_DB_TABLE);
-    TextSet(wnd.handl, IDC_USER, L"%s", app.db.user);
-    TextSet(wnd.handl, IDC_PASSWORD, L"%s", app.db.pwd);
+    ButtonCheck(dlg.handl, IDC_RUN_AS_SERVER, app.server);
+    TextSet(dlg.handl, IDC_INSTANCE, L"%s", app.db.inst);
+    TextSet(dlg.handl, IDC_CATALOG, L"%s", SQL_DB_CATALOG);
+    TextSet(dlg.handl, IDC_TABLE, L"%s", SQL_DB_TABLE);
+    TextSet(dlg.handl, IDC_USER, L"%s", app.db.user);
+    TextSet(dlg.handl, IDC_PASSWORD, L"%s", app.db.pwd);
+    Center(dlg.handl, 0, wnd.handl);
     return(TRUE);
 }
 
