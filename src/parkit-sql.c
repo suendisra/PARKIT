@@ -4,15 +4,20 @@
 */
 #include "parkit.h"
 #include <net-sql.h>
+#include <util-math.h>
 #include <util-mem.h>
+#include <util-sync.h>
 
-#define ERROR_CONFIG                L"An error was encountered while attempting to connect to database via ODBC2. Please ensure correct configuration and try again."
+#define ERROR_CONFIG                    L"An error was encountered while attempting to connect to database via ODBC2. Please ensure correct configuration and try again."
 
-#define SQL_DB_CATALOG              L"parkit"
-#define SQL_DB_TABLE                L"lot-status"
+#define SQL_DB_CATALOG                  L"parkit"
+#define SQL_DB_TABLE                    L"lot-status"
+#define SQL_META_DATA                   L"meta-data"
+#define SQL_META_TRANSCATION            L"transactionID"
 
-#define STORED_PROC_FULL_POLL       L"FullDatabasePoll"
-#define STORED_PROC_UPDATE_SPOT     L"UpdateParkingSpot"
+#define STORED_PROC_GET_TRANSACTION_ID  L"GetTransactionID"
+#define STORED_PROC_FULL_POLL           L"FullDatabasePoll"
+#define STORED_PROC_UPDATE_SPOT         L"UpdateParkingSpot"
 
 enum TABLECOLUMN
 {
@@ -29,8 +34,9 @@ enum TABLECOLUMN
     COLUMN_LAST
 };
 
-static SQL  sql = NULL;
 static WNDW dlg = {0};
+static SQL  sql = NULL;
+static SRW  transact = NULL;
 
 // static prototypes
 static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp);
@@ -46,7 +52,7 @@ BOOL Database(const BOOL standup)
     if(standup)
     {
         // if database connection hasn't been configured, prompt user to configure it
-        if((app.server || app.backup) && (app.db.inst[0] == CHARNULL))
+        if(app.server && (app.db.inst[0] == CHARNULL))
         {
             if(Dialog(IDD_CONFIG, wnd.handl, &dlg))
             {
@@ -56,12 +62,22 @@ BOOL Database(const BOOL standup)
             }
         }
 
-        // all is configured, attempt the connection
-        success = DbConnect();
+        if(Srw(FALSE, &transact))
+        {
+            // all is configured, attempt the connection
+            success = DbConnect();
+            if(!success)
+            {
+                // clear out database values so connection prompt is shown again
+                MemClear(&app.db, sizeof(app.db));
+                Message(MSG_ERR, wnd.handl, L"%s", ERROR_CONFIG);
+            }
+        }
     }else{
         // destroy sql connection
         SqlConnect(sql, FALSE);
         SqlKill(&sql);
+        SrwKill(&transact);
         success = TRUE;
     }
 
@@ -80,17 +96,22 @@ static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
             case IDC_RUN_AS_SERVER:
                 // only allow backup status if also acting as a server
                 checked = ButtonChecked(hwnd, IDC_RUN_AS_SERVER);
-                ButtonCheck(hwnd, IDC_RUN_AS_BACKUP, app.backup);
                 Enable(hwnd, IDC_RUN_AS_BACKUP, checked);
                 Enable(hwnd, IDC_INSTANCE, checked);
                 Enable(hwnd, IDC_USER, checked);
                 Enable(hwnd, IDC_PASSWORD, checked);
+                if(!checked)
+                {
+                    // clear out database values if not running as a server
+                    TextSet(hwnd, IDC_INSTANCE, L"");
+                    TextSet(hwnd, IDC_USER, L"");
+                    TextSet(hwnd, IDC_PASSWORD, L"");
+                }
                 break;
 
             case IDOK:
                 // pull out the configuration values and allow connection attempt
                 app.server = ButtonChecked(hwnd, IDC_RUN_AS_SERVER);
-                app.backup = ButtonChecked(hwnd, IDC_RUN_AS_BACKUP);
                 TextGet(hwnd, IDC_INSTANCE, app.db.inst, sizeof(app.db.inst));
                 TextGet(hwnd, IDC_USER, app.db.user, sizeof(app.db.user));
                 TextGet(hwnd, IDC_PASSWORD, app.db.pwd, sizeof(app.db.pwd));
@@ -108,9 +129,10 @@ static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
 /* attempt connection with given (or stored) parameters */
 static BOOL DbConnect(void)
 {
+    wchar_t txID[STR_MEDIUM] = L"";
     BOOL    success = !app.server;
 
-    if((app.server || app.backup) && (app.db.inst[0] != CHARNULL))
+    if(app.server && (app.db.inst[0] != CHARNULL))
     {
         if(Sql(wnd.handl, app.db.inst, &sql))
         {
@@ -118,8 +140,18 @@ static BOOL DbConnect(void)
             SqlConfig(&sql, app.db.user, app.db.pwd);
             if(SqlConnect(sql, TRUE))
             {
+                // first obtain the latest transaction ID in the database
                 SqlSource(sql, SQL_DB_CATALOG, SQL_DB_TABLE);
-                success = FullPollDB();
+                SqlBindInput(sql, BIND_TEXT, SQL_META_TRANSCATION, sizeof(SQL_META_TRANSCATION));
+                if(SqlProcResult(sql, STORED_PROC_GET_TRANSACTION_ID, txID, sizeof(txID)))
+                {
+                    // got it, give it to the app
+                    app.db.transactID = ToULongLong(txID, BASE_10);
+
+                    // change table to lot status table and do a full poll for all spot information
+                    SqlSource(sql, NULL, SQL_DB_TABLE);
+                    success = FullPollDB();
+                }
             }else{
                 // clear out database configuration and instruct user to try again
                 MemClear(&app.db, sizeof(app.db));
@@ -135,7 +167,6 @@ static BOOL DbConnect(void)
 static BOOL DbStart(void)
 {
     ButtonCheck(wnd.handl, IDC_RUN_AS_SERVER, app.server);
-    ButtonCheck(wnd.handl, IDC_RUN_AS_BACKUP, app.backup);
     TextSet(wnd.handl, IDC_INSTANCE, L"%s", app.db.inst);
     TextSet(wnd.handl, IDC_CATALOG, L"%s", SQL_DB_CATALOG);
     TextSet(wnd.handl, IDC_TABLE, L"%s", SQL_DB_TABLE);
@@ -147,16 +178,28 @@ static BOOL DbStart(void)
 /* retrieve all database values for parking lot statuses */
 BOOL FullPollDB(void)
 {
+    SPOT    spot = {0};
     BOOL    success = FALSE;
 
     // perform stored procedure to get all parking lot information
-    if(SqlProc(sql, STORED_PROC_FULL_POLL, NULL, ProcessPollResults))
+    if(SqlProc(sql, STORED_PROC_FULL_POLL, &spot, ProcessPollResults))
     {
         Refresh(wnd.handl);
         success = TRUE;
     }
 
     return(success);
+}
+
+/* callback function to obtain transaction ID for heartbeat */
+void GetTransactionID(ULONGLONG *transactID)
+{
+    if(transactID != NULL)
+    {
+        SrwLock(FALSE, transact);
+        *transactID = app.db.transactID;
+        SrwUnlock(FALSE, transact);
+    }
 }
 
 /**
@@ -170,49 +213,49 @@ BOOL FullPollDB(void)
 */
 static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata)
 {
+    SPOT    *sp = ((SPOT*)userdata);
+
     // perform parameter checks
-    if((row >= 0) && (col >= 0) && (cell != NULL) && (userdata == NULL))
+    if((row >= 0) && (col >= 0) && (cell != NULL) && (sp != NULL))
     {
-/*
         switch(col)
         {
             case COLUMN_ID:
                 // first column, reset spot parameters
-                MemClear(&sp, sizeof(sp));
-                sp.index = row;
+                MemClear(sp, sizeof(*sp));
                 break;
 
             case COLUMN_LVL:
                 // level on which spot is spot
-                Convert(CONVERT_STR_LNG, &sp.level, cell, sizeof(sp.level));
+                sp->level = ToULong(cell, BASE_10);
                 break;
 
             case COLUMN_SPOT:
                 // spot on each level
-                Convert(CONVERT_STR_LNG, &sp.spot, cell, sizeof(sp.spot));
+                sp->spot = ToULong(cell, BASE_10);
                 break;
 
             case COLUMN_EMPTY:
                 // indicates whether spot on the level is empty or not
-                sp.empty = (cell[0] == L'1');
+                sp->empty = (cell[0] == L'1');
                 break;
 
             case COLUMN_OVERRIDEN:
                 // indicates whether spot on the level was overridden or not
-                sp.overridden = (cell[0] == L'1');
+                sp->overridden = (cell[0] == L'1');
                 break;
 
             case COLUMN_SENSOR:
                 // indicates whether spot on the level has a sensor or not
-                sp.sensor = (cell[0] == L'1');
+                sp->sensor = (cell[0] == L'1');
                 break;
 
             case COLUMN_RESERVE:
                 // this is the reservation date for the parking spot
                 if((cell != NULL) && (cell[0] != CHARNULL))
                 {
-                    DatumString(&sp.reserve, TRUE, (wchar_t*)cell, (STR_SMALL * sizeof(wchar_t)));
-                    sp.reserved = TRUE;
+                    DatumString(&sp->reserve, TRUE, (wchar_t*)cell, (STR_SMALL * sizeof(wchar_t)));
+                    sp->reserved = TRUE;
                 }
                 break;
 
@@ -220,9 +263,8 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
                 // this is the expiration date to the reservation for the parking spot
                 if((cell != NULL) && (cell[0] != CHARNULL))
                 {
-                    // TODO
-                    OutputDebugString(cell);
-                    OutputDebugString(L"\n");
+                    DatumString(&sp->expires, TRUE, (wchar_t*)cell, (STR_SMALL * sizeof(wchar_t)));
+                    // TODO check if spot actually has had its reservation expired
                 }
                 break;
 
@@ -230,42 +272,46 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
                 // information on the vehicle, best practice is license plate
                 if((cell != NULL) && (cell[0] != CHARNULL))
                 {
-                    StrCopy(sp.vehicle, sizeof(sp.vehicle), cell, 0);
+                    StrCopy(sp->vehicle, sizeof(sp->vehicle), cell, 0);
                 }
 
                 // last column information, set spot into map
-                SpotInfo(FALSE, &sp);
+                SpotInfo(row, FALSE, sp);
                 break;
         }
-*/
     }
 
     return(TRUE);
 }
 
-/* update database information for given spot
+/* update database information for given spot */
 BOOL UpdateSpot(const SPOT spot)
 {
     BOOL    success = FALSE;
 
     // bind all the spot information values for stored proc execution
-    SqlBindInput(sql, SQLBIND_LONG, (void*)&spot.level, sizeof(spot.level));
-    SqlBindInput(sql, SQLBIND_LONG, (void*)&spot.spot, sizeof(spot.spot));
-    SqlBindInput(sql, SQLBIND_BOOL, (void*)&spot.empty, sizeof(spot.empty));
-    SqlBindInput(sql, SQLBIND_BOOL, (void*)&spot.overridden, sizeof(spot.overridden));
-    SqlBindInput(sql, SQLBIND_BOOL, (void*)&spot.sensor, sizeof(spot.sensor));
-    SqlBindInput(sql, SQLBIND_DATUM, (void*)&spot.reserve, sizeof(spot.reserve));
-    SqlBindInput(sql, SQLBIND_DATUM, (void*)&spot.expires, sizeof(spot.expires));
-    SqlBindInput(sql, SQLBIND_TEXT, (void*)spot.vehicle, sizeof(spot.vehicle));
-
-    // execute stored procedure with given parameters
-    if(SqlProc(sql, STORED_PROC_UPDATE_SPOT) == TRUE)
+    SqlBindInput(sql, BIND_LONG, (void*)&spot.level, sizeof(spot.level));
+    SqlBindInput(sql, BIND_LONG, (void*)&spot.spot, sizeof(spot.spot));
+    SqlBindInput(sql, BIND_BOOL, (void*)&spot.empty, sizeof(spot.empty));
+    SqlBindInput(sql, BIND_BOOL, (void*)&spot.overridden, sizeof(spot.overridden));
+    SqlBindInput(sql, BIND_BOOL, (void*)&spot.sensor, sizeof(spot.sensor));
+    SqlBindInput(sql, BIND_DATUM, (void*)&spot.reserve, sizeof(spot.reserve));
+    SqlBindInput(sql, BIND_DATUM, (void*)&spot.expires, sizeof(spot.expires));
+    SqlBindInput(sql, BIND_TEXT, (void*)spot.vehicle, sizeof(spot.vehicle));
+    if(SqlProc(sql, STORED_PROC_UPDATE_SPOT, NULL, NULL))
     {
-        // instruct window to redraw
-        SendMessage(wnd.handl, WM_PAINT, 0, 0);
+        UpdateTransactionID();
+        Refresh(wnd.handl);
         success = TRUE;
     }
 
     return(success);
 }
-*/
+
+/* increment the transaction ID as database transactions are performed */
+void UpdateTransactionID(void)
+{
+    SrwLock(TRUE, transact);
+    ++app.db.transactID;
+    SrwUnlock(TRUE, transact);
+}
