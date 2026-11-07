@@ -152,11 +152,19 @@ static BOOL Start(void)
             Defaults();
         }
 
-        // start up network operations
-        if(Database(TRUE) && Network(TRUE))
+        // start up application logic
+        if(Logic(TRUE))
         {
-            // start up GUI
-            success = Interface(TRUE);
+            // start up database operations
+            if(Database(TRUE))
+            {
+                // start up network operations
+                if(Network(TRUE))
+                {
+                    // start up GUI
+                    success = Interface(TRUE);
+                }
+            }
         }
     }
 
@@ -166,9 +174,10 @@ static BOOL Start(void)
 /* stop application */
 static void Stop(void)
 {
-    //File(FALSE);
+    File(FALSE);
+    Interface(FALSE);
     Network(FALSE);
     Database(FALSE);
-    Interface(FALSE);
+    Logic(FALSE);
     WindowKill(&wnd);
 }

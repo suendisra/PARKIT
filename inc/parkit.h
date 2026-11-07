@@ -7,6 +7,8 @@
 
 // net includes must be first for proper compilation
 #include <net-std.h>
+#include <util-dtm.h>
+#include <util-std.h>
 #include <util-str.h>
 #include <win-std.h>
 #include "resource.h"
@@ -30,16 +32,33 @@
 #define APP_TITLE       L"PARKIT"
 #define APP_VERSION     L"0.2.7"
 
+typedef struct
+{
+    ULONG   level;
+    ULONG   spot;
+
+    BOOL    empty;
+    BOOL    expired;
+    BOOL    overridden;
+    BOOL    reserved;
+    BOOL    sensor;
+
+    DATUM   reserve;
+    DATUM   expires;
+
+    wchar_t vehicle[STR_SMALL];
+}SPOT;
+
 struct
 {
     struct
     {
-        wchar_t inst[STR_NORM]; // database instance name
-        wchar_t pwd[STR_NORM];  // password to connect to database
-        wchar_t user[STR_NORM]; // username to connect to database
+        ULONGLONG   transactID;     // latest transaction ID for the parkit table
+        wchar_t     inst[STR_NORM]; // database instance name
+        wchar_t     pwd[STR_NORM];  // password to connect to database
+        wchar_t     user[STR_NORM]; // username to connect to database
     }db;
 
-    BOOL    backup;
     BOOL    server;
     BOOL    showlegend;
 }app;
@@ -63,26 +82,18 @@ BOOL Database(const BOOL standup);
 void Draw(const HWND parent);
 
 /**
-  @fn               void Heartbeat(void)
-  @brief            send out UDP broadcast for clients to discover and connect
-*/
-void DiscoverMe(void);
-
-/**
-  @fn               BOOL Client(const BOOL startup)
-  @brief            start application as a client
-  @param[in]        startup if TRUE, start the client, if FALSE, destroy
-  @param[in]        forserver if on server side, allocate needed resources to also run client-side commands
-  @return           TRUE if setup/destruction was successful, FALSE otherwise
-*/
-BOOL Client(const BOOL startup, const BOOL forserver);
-
-/**
   @fn               BOOL FullPollDB(void)
   @brief            retrieve all database values for parking lot statuses
   @return           TRUE if all data was successfully polled, FALSE otherwise
 */
 BOOL FullPollDB(void);
+
+/**
+  @fn               void GetTransactionID(ULONGLONG *transactID)
+  @brief            callback function to obtain transaction ID for heartbeat
+  @param[in]        transactID pointer to value to set with the current transaction ID
+*/
+void GetTransactionID(ULONGLONG *transactID);
 
 /**
   @fn               void Input(const WORD key, const BOOL down)
@@ -100,6 +111,14 @@ void Input(const WORD key, const BOOL down);
 BOOL Interface(const BOOL start);
 
 /**
+  @fn               BOOL Logic(const BOOL load)
+  @brief            start or stop application logic handling
+  @param[in]        load if true, start logic; if false, stop logic
+  @return           TRUE if successfully started/stopped; FALSE otherwise
+*/
+BOOL Logic(const BOOL load);
+
+/**
   @fn               BOOL Network(const BOOL start)
   @brief            initialize or tear down winsock
   @param[in]        start if TRUE, start winsock operations, FALSE otherwise
@@ -107,47 +126,26 @@ BOOL Interface(const BOOL start);
 BOOL Network(const BOOL start);
 
 /**
-  @fn               void OverrideSpot(const long index)
-  @brief            based on current spot information, toggle if spot is overriden
-  @param[in]        index based on mouse click location, calculated value of spot index
+  @fn               BOOL SpotInfo(const INDEX index, const BOOL get, SPOT *spot)
+  @brief            get or set information for a given spot
+  @param[in]        index map index for the given spot to get/set
+  @param[in]        get if TRUE, retrieve spot information; if FALSE, set it
+  @return           TRUE if successfully got/set; FALSE otherwise
 */
-void OverrideSpot(const long index);
-
-/**
-  @fn               void ReserveSpot(const long index)
-  @brief            prompt client user to give reservation info, then send to server
-  @param[in]        index based on mouse click location, calculated value of spot index
-*/
-void ReserveSpot(const long index);
-
-/**
-  @fn               BOOL Server(const BOOL startup)
-  @brief            start application as a server 
-  @param[in]        startup if TRUE, start the server, if FALSE, destroy
-  @return           TRUE if setup/destruction was successful, FALSE otherwise
-*/
-BOOL Server(const BOOL startup);
-
-/**
-  @fn               BOOL SpotInfo(const BOOL get, SPOT *spot)
-  @brief            return to caller information regarding the spot identified by the index
-  @param[in]        get if TRUE, obtain spot information, if FALSE, push spot information
-  @param[in out]    spot the information to pass back to caller
-  @return           TRUE if information was retrieved, FALSE otherwise
-BOOL SpotInfo(const BOOL get, SPOT *spot);
-
-/**
-  @fn               BOOL VerifyPacket(const PACKET *p)
-  @brief            pkt pointer to packet contents to verify
-  @return           if true packet is valid, false otherwise
-BOOL VerifyPacket(const PACKET *pkt);
+BOOL SpotInfo(const INDEX index, const BOOL get, SPOT *spot);
 
 /**
   @fn               BOOL UpdateSpot(const SPOT spot)
-  @brief            update database information for given spot
-  @param[in]        spot information for given spot
-  @return           true if database was successfully updated, false otherwise
-BOOL UpdateSpot(const SPOT spot);
+  @brief            updates database with given spot information
+  @param[in]        spot information to update database with
+  @return           TRUE if successfully updated database; FALSE otherwise
 */
+BOOL UpdateSpot(const SPOT spot);
+
+/**
+  @fn               void UpdateTransactionID(void)
+  @brief            increment the transaction ID as database transactions are performed
+*/
+void UpdateTransactionID(void);
 
 #endif
