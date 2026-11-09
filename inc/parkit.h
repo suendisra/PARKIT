@@ -34,6 +34,8 @@
 
 typedef struct
 {
+    INDEX   midx;
+
     ULONG   level;
     ULONG   spot;
 
