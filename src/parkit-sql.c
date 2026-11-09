@@ -50,6 +50,8 @@ BOOL Database(const BOOL standup)
 {
     BOOL    success = FALSE;
 
+    LTRACE(logger, IDS_TRACE_ENTER, L"Database()");
+
     if(standup)
     {
         if(Srw(FALSE, &transact))
@@ -81,6 +83,7 @@ BOOL Database(const BOOL standup)
         success = TRUE;
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"Database()");
     return(success);
 }
 
@@ -88,6 +91,8 @@ BOOL Database(const BOOL standup)
 static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
 {
     BOOL    checked = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"DbCommand()");
 
     if((hwnd != NULL) && (wp > 0) && (lp >= 0))
     {
@@ -123,6 +128,7 @@ static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp)
         }
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"DbCommand()");
     return(TRUE);
 }
 
@@ -131,6 +137,8 @@ static BOOL DbConnect(void)
 {
     wchar_t txID[STR_MEDIUM] = L"";
     BOOL    success = !app.server;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"DbConnect()");
 
     if(app.server && (app.db.inst[0] != CHARNULL))
     {
@@ -160,12 +168,15 @@ static BOOL DbConnect(void)
         }
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"DbConnect()");
     return(success);
 }
 
 /* configure database and network parameters dialog with given values */
 static BOOL DbStart(void)
 {
+    LTRACE(logger, IDS_TRACE_ENTER, L"DbStart()");
+
     ButtonCheck(dlg.handl, IDC_RUN_AS_SERVER, app.server);
     TextSet(dlg.handl, IDC_INSTANCE, L"%s", app.db.inst);
     TextSet(dlg.handl, IDC_CATALOG, L"%s", SQL_DB_CATALOG);
@@ -173,6 +184,8 @@ static BOOL DbStart(void)
     TextSet(dlg.handl, IDC_USER, L"%s", app.db.user);
     TextSet(dlg.handl, IDC_PASSWORD, L"%s", app.db.pwd);
     Center(dlg.handl, 0, wnd.handl);
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"DbStart()");
     return(TRUE);
 }
 
@@ -182,6 +195,8 @@ BOOL FullPollDB(void)
     SPOT    spot = {0};
     BOOL    success = FALSE;
 
+    LTRACE(logger, IDS_TRACE_ENTER, L"FullPollDB()");
+
     // perform stored procedure to get all parking lot information
     if(SqlProc(sql, STORED_PROC_FULL_POLL, &spot, ProcessPollResults))
     {
@@ -189,18 +204,23 @@ BOOL FullPollDB(void)
         success = TRUE;
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"FullPollDB()");
     return(success);
 }
 
 /* callback function to obtain transaction ID for heartbeat */
 void GetTransactionID(ULONGLONG *transactID)
 {
+    LTRACE(logger, IDS_TRACE_ENTER, L"GetTransactionID()");
+
     if(transactID != NULL)
     {
         SrwLock(FALSE, transact);
         *transactID = app.db.transactID;
         SrwUnlock(FALSE, transact);
     }
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"GetTransactionID()");
 }
 
 /**
@@ -216,6 +236,8 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
 {
     SPOT    *sp = ((SPOT*)userdata);
 
+    LTRACE(logger, IDS_TRACE_ENTER, L"ProcessPollResults()");
+
     // perform parameter checks
     if((row >= 0) && (col >= 0) && (cell != NULL) && (sp != NULL))
     {
@@ -224,6 +246,7 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
             case COLUMN_ID:
                 // first column, reset spot parameters
                 MemClear(sp, sizeof(*sp));
+                sp->midx = row;
                 break;
 
             case COLUMN_LVL:
@@ -282,6 +305,7 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
         }
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"ProcessPollResults()");
     return(TRUE);
 }
 
@@ -289,6 +313,8 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
 BOOL UpdateSpot(const SPOT spot)
 {
     BOOL    success = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"UpdateSpot()");
 
     // bind all the spot information values for stored proc execution
     SqlBindInput(sql, BIND_LONG, (void*)&spot.level, sizeof(spot.level));
@@ -306,13 +332,18 @@ BOOL UpdateSpot(const SPOT spot)
         success = TRUE;
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"UpdateSpot()");
     return(success);
 }
 
 /* increment the transaction ID as database transactions are performed */
 void UpdateTransactionID(void)
 {
+    LTRACE(logger, IDS_TRACE_ENTER, L"UpdateTransactionID()");
+
     SrwLock(TRUE, transact);
     ++app.db.transactID;
     SrwUnlock(TRUE, transact);
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"UpdateTransactionID()");
 }

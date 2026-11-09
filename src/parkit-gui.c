@@ -39,6 +39,8 @@ static void DrawScreen(void);
 /* draw primary application screen */
 void Draw(const HWND parent)
 {
+    LTRACE(logger, IDS_TRACE_ENTER, L"Draw()");
+
     if(GphPaint(gph, parent))
     {
         DrawInfo();
@@ -51,12 +53,16 @@ void Draw(const HWND parent)
         GphBlit(gph);
         GphPaint(gph, parent);
     }
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"Draw()");
 }
 
 /* draw informational text regarding application states */
 static void DrawInfo(void)
 {
     wchar_t temp[STR_MEDIUM] = {0};
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"DrawInfo()");
 
     // clear the background and info bar
     GphClear(gph, &info.dims, GCOAL);
@@ -71,12 +77,16 @@ static void DrawInfo(void)
 
     CharReplace(temp, sizeof(temp), CHARPIPE, CHARNULL);
     GridList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"DrawInfo()");
 }
 
 /* draw legend of colors to indicate properties of each parking spot portrayed */
 static void DrawLegend(void)
 {
     QUAD    dims = screen.dims;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"DrawLegend()");
 
     if(app.showlegend)
     {
@@ -87,6 +97,8 @@ static void DrawLegend(void)
 
         // TODO
     }
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"DrawLegend()");
 }
 
 /* draw contents of each parking spot in the  */
@@ -94,6 +106,8 @@ static BOOL DrawParkingSpot(const QUAD cell, const INDEX index, void *userdata)
 {
     SPOT    spot = {0};
     long    idx = 0;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"DrawParkingSpot()");
 
     if((cell.cx > 0) && (cell.cy > 0) && (index >= 0) && (userdata == NULL))
     {
@@ -120,16 +134,21 @@ static BOOL DrawParkingSpot(const QUAD cell, const INDEX index, void *userdata)
         }
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"DrawParkingSpot()");
     return(TRUE);
 }
 
 /* draw main application screen with parking lot information */
 static void DrawScreen(void)
 {
+    LTRACE(logger, IDS_TRACE_ENTER, L"DrawScreen()");
+
     // clear the background and info bar
     GphClear(gph, &screen.dims, GBLACK);
     GridFunc(screen, NULL, DrawParkingSpot);
     GphBlit(gph);
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"DrawScreen()");
 }
 
 /* initialize or tear down WinGDI */
@@ -137,6 +156,8 @@ BOOL Interface(const BOOL start)
 {
     QUAD    dims[2] = {0};
     BOOL    success = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"Interface()");
 
     if(start)
     {
@@ -173,5 +194,6 @@ BOOL Interface(const BOOL start)
         success = TRUE;
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"Interface()");
     return(success);
 }

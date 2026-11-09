@@ -52,9 +52,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previnst, LPWSTR cmd, int show
 /* set up standard defaults */
 static void Defaults(void)
 {
+    LTRACE(logger, IDS_TRACE_ENTER, L"Default()");
+
     MemClear(&app, sizeof(app));
     app.server = TRUE;
     app.showlegend = TRUE;
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"Defaults()");
 }
 
 /* attempt to read in or write out system-stored server configuration */
@@ -63,6 +67,8 @@ static BOOL File(const BOOL load)
     CFILE   cf = {0};
     wchar_t path[STR_PATH] = {0};
     BOOL    success = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"File()");
 
     // get system path for save data
     if(FolderApp(path, sizeof(path), L"%s", APP_PATH))
@@ -84,6 +90,7 @@ static BOOL File(const BOOL load)
         }
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"File()");
     return(success);
 }
 
@@ -93,6 +100,8 @@ static void Keys(const BOOL encrypt)
     long    n = 0;
     wchar_t keys[KEY_MAX * STR_NORM] = {0};
     wchar_t temp[STR_NORM] = {0};
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"Keys()");
 
     if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)))
     {
@@ -106,6 +115,8 @@ static void Keys(const BOOL encrypt)
             }
         }
     }
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"Keys()");
 }
 
 /* start up or shut down logging capabilites */
@@ -113,6 +124,8 @@ static BOOL Logging(const BOOL load)
 {
     wchar_t path[STR_PATH] = {0};
     BOOL    success = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"Logging()");
 
     if(load)
     {
@@ -135,6 +148,7 @@ static BOOL Logging(const BOOL load)
         success = LogKill(&logger);
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"Logging()");
     return(success);
 }
 
@@ -142,6 +156,8 @@ static BOOL Logging(const BOOL load)
 static BOOL Start(void)
 {
     BOOL    success = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"Start()");
 
     // attempt to load system-stored server configuration data
     if(!File(TRUE))
@@ -165,16 +181,21 @@ static BOOL Start(void)
         }
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"Start()");
     return(success);
 }
 
 /* stop application */
 static void Stop(void)
 {
+    LTRACE(logger, IDS_TRACE_ENTER, L"Stop()");
+
     File(FALSE);
     Interface(FALSE);
     Network(FALSE);
     Database(FALSE);
     Logic(FALSE);
     WindowKill(&wnd);
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"Stop()");
 }

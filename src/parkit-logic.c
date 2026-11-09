@@ -11,6 +11,8 @@ BOOL Logic(const BOOL load)
 {
     BOOL    success = FALSE;
 
+    LTRACE(logger, IDS_TRACE_ENTER, L"Logic()");
+
     if(load)
     {
         if(Map(&spots))
@@ -22,6 +24,7 @@ BOOL Logic(const BOOL load)
         success = TRUE;
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"Logic()");
     return(success);
 }
 
@@ -29,6 +32,8 @@ BOOL Logic(const BOOL load)
 BOOL SpotInfo(const INDEX index, const BOOL get, SPOT *spot)
 {
     BOOL    success = FALSE;
+
+    LTRACE(logger, IDS_TRACE_ENTER, L"SpotInfo()");
 
     if((spot != NULL) && (index >= 0))
     {
@@ -42,5 +47,6 @@ BOOL SpotInfo(const INDEX index, const BOOL get, SPOT *spot)
         }
     }
 
+    LTRACE(logger, IDS_TRACE_EXIT, L"SpotInfo()");
     return(success);
 }

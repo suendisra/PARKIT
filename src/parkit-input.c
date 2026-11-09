@@ -12,6 +12,8 @@ void Input(const WORD key, const BOOL down)
 {
     BOOL    input = FALSE;
 
+    LTRACE(logger, IDS_TRACE_ENTER, L"Input()");
+
     if(KeySet(key, down, &kb))
     {
         if(kb.up['L'] == TRUE)
@@ -35,4 +37,6 @@ void Input(const WORD key, const BOOL down)
         // up-state of key(s) should not be persistent
         MemClear(&kb.up, sizeof(kb.up));
     }
+
+    LTRACE(logger, IDS_TRACE_EXIT, L"Input()");
 }
