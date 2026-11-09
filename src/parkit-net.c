@@ -4,6 +4,39 @@
 */
 #include "parkit.h"
 #include <net-cal.h>
+#include <util-mem.h>
+
+enum PARKITMSGTYPE
+{
+    PARK_MSG_INVAL = -1,
+    PARK_MSG_NEW_CLIENT,
+    PARK_MSG_UPDATE_SPOT,
+    PARK_MSG_LAST
+};
+
+// static prototypes
+static BOOL ClientUpdateSpot(const void *userdata, void *data, ULONG *sz);
+
+/* publish message to client to update given spot with given information */
+static BOOL ClientUpdateSpot(const void *userdata, void *data, ULONG *sz)
+{
+    SPOT    *sp = NULL;
+    INDEX   index = *((INDEX*)userdata);
+    BOOL    success = FALSE;
+
+    if((userdata != NULL) && (data != NULL) && (sz != NULL))
+    {
+        *sz = sizeof(SPOT);
+        if(Mem(sizeof(SPOT), &data))
+        {
+            if(SpotInfo(index, TRUE, sp))
+            {
+            }
+        }
+    }
+
+    return(success);
+}
 
 /* initialize or tear down winsock */
 BOOL Network(const BOOL start)
@@ -19,8 +52,11 @@ BOOL Network(const BOOL start)
         if(Net(TRUE) && Cal(mode, APP_TITLE))
         {
             // start the CAL
-            CalTransactID(GetTransactionID);
-            success = CalStart();
+            if(CalStart())
+            {
+                CalTransactID(GetTransactionID);
+                CalPublisher(PARK_MSG_UPDATE_SPOT, ClientUpdateSpot);
+            }
         }
     }else{
         // kill the network operations
