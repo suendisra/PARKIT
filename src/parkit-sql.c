@@ -13,7 +13,6 @@
 #define SQL_DB_CATALOG                  L"parkit"
 #define SQL_DB_TABLE                    L"lot-status"
 #define SQL_META_DATA                   L"meta-data"
-#define SQL_META_TRANSCATION            L"transactionID"
 
 #define STORED_PROC_GET_TRANSACTION_ID  L"GetTransactionID"
 #define STORED_PROC_FULL_POLL           L"FullDatabasePoll"
@@ -22,8 +21,6 @@
 enum TABLECOLUMN
 {
     COLUMN_INVAL = -1,
-    COLUMN_ID,
-    COLUMN_LVL,
     COLUMN_SPOT,
     COLUMN_EMPTY,
     COLUMN_OVERRIDEN,
@@ -31,6 +28,7 @@ enum TABLECOLUMN
     COLUMN_RESERVE,
     COLUMN_EXPIRES,
     COLUMN_VEHICLE,
+    COLUMN_UPDATED,
     COLUMN_LAST
 };
 
@@ -43,7 +41,7 @@ static BOOL attempt = FALSE;
 static BOOL DbCommand(const HWND hwnd, const WPARAM wp, const LPARAM lp);
 static BOOL DbConnect(void);
 static BOOL DbStart(void);
-static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata);
+static BOOL ProcessPollResults(const long row, const long col, const void *cell, void *userdata);
 
 /* set up connection to the sql db server */
 BOOL Database(const BOOL standup)
@@ -150,7 +148,6 @@ static BOOL DbConnect(void)
             {
                 // first obtain the latest transaction ID in the database
                 SqlSource(sql, SQL_DB_CATALOG, SQL_DB_TABLE);
-                SqlBindInput(sql, BIND_TEXT, SQL_META_TRANSCATION, sizeof(SQL_META_TRANSCATION));
                 if(SqlProcResult(sql, STORED_PROC_GET_TRANSACTION_ID, txID, sizeof(txID)))
                 {
                     // got it, give it to the app
@@ -232,7 +229,7 @@ void GetTransactionID(ULONGLONG *transactID)
   @param[in]    userdata caller data passed to this function
   @return       true if data was successfully processed and loop should continue, false otherwise
 */
-static BOOL ProcessPollResults(const long row, const long col, const wchar_t *cell, void *userdata)
+static BOOL ProcessPollResults(const long row, const long col, const void *cell, void *userdata)
 {
     SPOT    *sp = ((SPOT*)userdata);
 
@@ -243,64 +240,62 @@ static BOOL ProcessPollResults(const long row, const long col, const wchar_t *ce
     {
         switch(col)
         {
-            case COLUMN_ID:
-                // first column, reset spot parameters
-                MemClear(sp, sizeof(*sp));
-                sp->midx = row;
-                break;
-
-            case COLUMN_LVL:
-                // level on which spot is spot
-                sp->level = ToULong(cell, BASE_10);
-                break;
-
             case COLUMN_SPOT:
-                // spot on each level
-                sp->spot = ToULong(cell, BASE_10);
+                // level on which spot is found
+                MemClear(sp, sizeof(*sp));
+                sp->spot = *((ULONG*)cell);
                 break;
 
             case COLUMN_EMPTY:
                 // indicates whether spot on the level is empty or not
-                sp->empty = (cell[0] == L'1');
+                sp->empty = *((BOOL*)cell);
                 break;
 
             case COLUMN_OVERRIDEN:
                 // indicates whether spot on the level was overridden or not
-                sp->overridden = (cell[0] == L'1');
+                sp->overridden = *((BOOL*)cell);
                 break;
 
             case COLUMN_SENSOR:
                 // indicates whether spot on the level has a sensor or not
-                sp->sensor = (cell[0] == L'1');
+                sp->sensor = *((BOOL*)cell);
                 break;
 
             case COLUMN_RESERVE:
                 // this is the reservation date for the parking spot
-                if((cell != NULL) && (cell[0] != CHARNULL))
+                if(cell != NULL)
                 {
-                    DatumString(&sp->reserve, TRUE, (wchar_t*)cell, (STR_SMALL * sizeof(wchar_t)));
+                    MemCopy(&sp->reserve, cell, sizeof(sp->reserve));
                     sp->reserved = TRUE;
                 }
                 break;
 
             case COLUMN_EXPIRES:
                 // this is the expiration date to the reservation for the parking spot
-                if((cell != NULL) && (cell[0] != CHARNULL))
+                if(cell != NULL)
                 {
-                    DatumString(&sp->expires, TRUE, (wchar_t*)cell, (STR_SMALL * sizeof(wchar_t)));
-                    // TODO check if spot actually has had its reservation expired
+                    MemCopy(&sp->expires, cell, sizeof(sp->expires));
+                    // TODO: check if reservation has expired
                 }
                 break;
 
             case COLUMN_VEHICLE:
                 // information on the vehicle, best practice is license plate
-                if((cell != NULL) && (cell[0] != CHARNULL))
+                if((cell != NULL) && (((wchar_t*)cell)[0] != CHARNULL))
                 {
-                    StrCopy(sp->vehicle, sizeof(sp->vehicle), cell, 0);
+                    StrCopy(sp->vehicle, sizeof(sp->vehicle), (wchar_t*)cell, 0);
+                }
+                break;
+
+            case COLUMN_UPDATED:
+                // this is the last date/time that the row was updated
+                if(cell != NULL)
+                {
+                    MemCopy(&sp->updated, cell, sizeof(sp->updated));
                 }
 
                 // last column information, set spot into map
-                SpotInfo(row, FALSE, sp);
+                MapPush(spots, &sp->spot, sizeof(sp->spot), sp, sizeof(*sp));
                 break;
         }
     }
@@ -317,7 +312,6 @@ BOOL UpdateSpot(const SPOT spot)
     LTRACE(logger, IDS_TRACE_ENTER, L"UpdateSpot()");
 
     // bind all the spot information values for stored proc execution
-    SqlBindInput(sql, BIND_LONG, (void*)&spot.level, sizeof(spot.level));
     SqlBindInput(sql, BIND_LONG, (void*)&spot.spot, sizeof(spot.spot));
     SqlBindInput(sql, BIND_BOOL, (void*)&spot.empty, sizeof(spot.empty));
     SqlBindInput(sql, BIND_BOOL, (void*)&spot.overridden, sizeof(spot.overridden));
