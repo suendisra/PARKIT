@@ -22,10 +22,10 @@
 #define SCREEN_ROUND                10
 #define SCREEN_ROWS                 8
 
-#define SPOT_INFO                   L"%ld-%03ld\nUntil: %s\nPlate: %s"
+#define SPOT_INFO                   L"%ld-%04ld\nUntil: %s\nPlate: %s"
+#define SPOT_INFO_EMPTY             L"%ld-%04ld\nEMPTY"
 
 static GPH      gph = {0};
-static GRID     screen = {0};
 static GRID     info = {0};
 static INDEX    font = -1;
 static CLRPOOL  scolor = {0};
@@ -95,7 +95,7 @@ static void DrawLegend(void)
         GphStock(gph, GGRAY, GWHITE);
         GphRect(gph, dims, SCREEN_ROUND);
 
-        // TODO
+        // TODO - draw legend text
     }
 
     LTRACE(logger, IDS_TRACE_EXIT, L"DrawLegend()");
@@ -105,28 +105,36 @@ static void DrawLegend(void)
 static BOOL DrawParkingSpot(const QUAD cell, const INDEX index, void *userdata)
 {
     SPOT    spot = {0};
-    long    idx = 0;
+    ULONG   clridx = 0;
+    ULONG   spotID = SPOTID(app.level, (index / screen.cols), (index % screen.cols));
+    wchar_t expires[STR_NORM] = {0};
 
     LTRACE(logger, IDS_TRACE_ENTER, L"DrawParkingSpot()");
 
-    if((cell.cx > 0) && (cell.cy > 0) && (index >= 0) && (userdata == NULL))
+    if((cell.cx > 0) && (cell.cy > 0) && (spotID >= 0) && (userdata == NULL))
     {
         // retrieve information regarding this spot
-        if(SpotInfo(index, TRUE, &spot))
+        if(MapPop(spots, &spot, &spotID, sizeof(spotID)))
         {
             // draw a border for this parking lot spot
-            idx = (spot.reserved ? coloroffset : 0);
-            idx += (spot.empty * 1);
-            idx += (spot.overridden * 2);
-            idx += (spot.expired * 4);
+            clridx = (spot.reserved ? coloroffset : 0);
+            clridx += (spot.empty * 1);
+            clridx += (spot.overridden * 2);
+            clridx += (spot.expired * 4);
 
             // draw color-coded status background rect
-            // todo - GphStock(gph, scolor.color[idx], GGRAY);
+            GphStock(gph, PoolColor(clridx, scolor), GGRAY);
             GphRect(gph, cell, SCREEN_ROUND);
 
             // draw text for the spot
             GphFontColor(gph, GBLACK, GTRANS);
-            GphText(gph, &cell, ALIGN_CENTER2D, SPOT_INFO, spot.level, index, L"", spot.vehicle);
+            if(spot.empty)
+            {
+                GphText(gph, &cell, ALIGN_CENTER2D, SPOT_INFO_EMPTY, app.level, spot.spot);
+            }else{
+                DatumString(&spot.expires, FALSE, expires, sizeof(expires));
+                GphText(gph, &cell, ALIGN_CENTER2D, SPOT_INFO, app.level, spot.spot, expires, spot.vehicle);
+            }
         }else{
             // no information, draw empty spot
             GphStock(gph, GTRANS, GGRAY);
