@@ -10,9 +10,6 @@
 #include <util-std.h>
 #include <win-wait.h>
 
-#define KEY_DELIM   L"\n"
-#define KEY_MAX     32
-
 // static prototypes
 static void Defaults(void);
 static BOOL File(const BOOL load);
@@ -36,8 +33,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previnst, LPWSTR cmd, int show
         {
             WindowConfig(Start, NULL, Stop, &wnd);
             WindowFunc(WM_PAINT, (void*)Draw, &wnd);
-            WindowFunc(WM_KEYDOWN, (void*)Input, &wnd);
-            WindowFunc(WM_KEYUP, (void*)Input, &wnd);
+            WindowFunc(WM_KEYDOWN, (void*)InputKey, &wnd);
+            WindowFunc(WM_KEYUP, (void*)InputKey, &wnd);
+            WindowFunc(WM_LBUTTONUP, (void*)InputMouse, &wnd);
             WindowIcon(IDI_PARKIT, &wnd);
             Loop(wnd);
         }
@@ -97,21 +95,30 @@ static BOOL File(const BOOL load)
 /* pull in all keys used to encrypt data on disk */
 static void Keys(const BOOL encrypt)
 {
+    long    maxlines = 0;
     long    n = 0;
-    wchar_t keys[KEY_MAX * STR_NORM] = {0};
+    long    ksz = 0;
+    wchar_t *keys = NULL;
     wchar_t temp[STR_NORM] = {0};
 
     LTRACE(logger, IDS_TRACE_ENTER, L"Keys()");
 
-    if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)))
+    // determine size of password file, allocate memory for its contents
+    ksz = (ResourceSize(RSC_TYPE_TXT, IDR_PARKIT_KEYS) * sizeof(wchar_t));
+    if(Mem(ksz, &keys))
     {
-        // text file containing data-at-rest passwords has been opened
-        for(n = 0; (n < KEY_MAX); ++n)
+        // load it in
+        if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)))
         {
-            // use each key to encrypt or decrypt the app data as appropriate
-            if(StrParse(temp, sizeof(temp), keys, sizeof(keys), KEY_DELIM, (encrypt ? (n + 1) : (KEY_MAX - n))))
+            // text file containing data-at-rest passwords has been opened
+            maxlines = CharCount(keys, ksz, CHARLINE);
+            for(n = 0; (n < maxlines); ++n)
             {
-                EncryptXOR(&app, sizeof(app), temp, StrLen(temp, sizeof(temp)));
+                // use each key to encrypt or decrypt the app data as appropriate
+                if(StrParse(temp, sizeof(temp), keys, sizeof(keys), PARSE_NEWLINE, (encrypt ? (n + 1) : (maxlines - n))))
+                {
+                    EncryptXOR(&app, sizeof(app), temp, StrLen(temp, sizeof(temp)));
+                }
             }
         }
     }
@@ -167,7 +174,7 @@ static BOOL Start(void)
     }
 
     // start up application logic
-    if(Logic(TRUE))
+    if(Map(&spots))
     {
         // start up database operations
         if(Database(TRUE))
@@ -194,7 +201,7 @@ static void Stop(void)
     Interface(FALSE);
     Network(FALSE);
     Database(FALSE);
-    Logic(FALSE);
+    MapKill(&spots);
     WindowKill(&wnd);
 
     LTRACE(logger, IDS_TRACE_EXIT, L"Stop()");
