@@ -9,14 +9,18 @@
 enum PARKITMSGTYPE
 {
     PARK_MSG_INVAL = -1,
-    PARK_MSG_NEW_CLIENT,
-    PARK_MSG_UPDATE_SPOT,
+    PARK_MSG_DB_SNAPSHOT,
+    PARK_MSG_SPOT,
     PARK_MSG_LAST
 };
 
+static SPOT empty = {0};
+
 // static prototypes
-static BOOL RecvUpdateSpot(const void *subdata, const ULONG sz);
-static BOOL SendUpdateSpot(const void *userdata, void *pubdata);
+static void NewClientAccepted(const NETIDX idx);
+static void NewClientSnapshot(const KEYVALUE *kvpair, const void *userdata);
+static void RecvSpot(const void *subdata, const ULONG sz);
+static BOOL SendSpot(const void *userdata, void *pubdata);
 
 /* initialize or tear down winsock */
 BOOL Network(const BOOL start)
@@ -31,13 +35,19 @@ BOOL Network(const BOOL start)
         // start up network and CAL operations
         if(Net(TRUE) && Cal(mode, APP_TITLE))
         {
-            // start the CAL
-            if(CalStart())
+            // configure the CAL for the application
+            if(app.server)
             {
                 CalTransactID(GetTransactionID);
-                CalPublisher(PARK_MSG_UPDATE_SPOT, sizeof(SPOT), SendUpdateSpot);
-                CalSubscriber(PARK_MSG_UPDATE_SPOT, RecvUpdateSpot);
+                CalOnAccept(NewClientAccepted);
+                CalPublisher(PARK_MSG_DB_SNAPSHOT, sizeof(SPOT), SendSpot);
             }
+            CalPublisher(PARK_MSG_SPOT, sizeof(SPOT), SendSpot);
+            CalSubscriber(PARK_MSG_DB_SNAPSHOT, RecvSpot);
+            CalSubscriber(PARK_MSG_SPOT, RecvSpot);
+
+            // start CAL network operations
+            success = CalStart();
         }
     }else{
         // kill the network operations
@@ -50,31 +60,57 @@ BOOL Network(const BOOL start)
     return(success);
 }
 
+/* new client was accepted by server; pass it the latest DB snapshot */
+static void NewClientAccepted(const NETIDX idx)
+{
+    INDEX   eID = 0;
+
+    if((app.server) && (idx > 0))
+    {
+        // send client DB snapshot
+        MapForEach(spots, NULL, NewClientSnapshot);
+        CalPublish(PARK_MSG_DB_SNAPSHOT, &eID);
+    }
+}
+
+/* iterate through map and send out each spot data to new client */
+static void NewClientSnapshot(const KEYVALUE *kvpair, const void *userdata)
+{
+    if((kvpair != NULL) && (userdata == NULL))
+    {
+        CalPublish(PARK_MSG_DB_SNAPSHOT, &kvpair->key);
+    }
+}
+
 /* receive published message from client/server to update given spot with given information */
-static BOOL RecvUpdateSpot(const void *subdata, const ULONG sz)
+static void RecvSpot(const void *subdata, const ULONG sz)
 {
     SPOT    *sp = ((SPOT*)subdata);
-    BOOL    success = FALSE;
 
     LTRACE(logger, IDS_TRACE_ENTER, L"RecvUpdateSpot()");
 
     if((sp != NULL) && (sz == sizeof(SPOT)))
     {
         // update map with received spot information
-        success = SpotInfo(sp->midx, FALSE, sp);
-        if(success && app.server)
+        if(sp->spot == 0)
         {
-            // update database with relavent information
-            success &= UpdateSpot(*sp);
+            // this is an empty spot to signal end of spot sending (utilized by DB snapshots)
+            CalSubscriber(PARK_MSG_DB_SNAPSHOT, NULL);
+        }else{
+            // push into valid spot
+            if(MapPush(spots, &sp->spot, sizeof(sp->spot), sp, sizeof(*sp)) && app.server)
+            {
+                // update database with relavent information
+                UpdateSpot(*sp);
+            }
         }
     }
 
     LTRACE(logger, IDS_TRACE_EXIT, L"RecvUpdateSpot()");
-    return(success);
 }
 
 /* publish message to client/server to update given spot with given information */
-static BOOL SendUpdateSpot(const void *userdata, void *pubdata)
+static BOOL SendSpot(const void *userdata, void *pubdata)
 {
     INDEX   index = *((INDEX*)userdata);
     SPOT    *sp = ((SPOT*)pubdata);
@@ -85,7 +121,15 @@ static BOOL SendUpdateSpot(const void *userdata, void *pubdata)
     if((userdata != NULL) && (pubdata != NULL))
     {
         // place spot information into publisher data buffer
-        success = SpotInfo(index, TRUE, sp);
+        if(index == 0)
+        {
+            // this is an empty spot to signal end of spot sending (utilized by DB snapshots)
+            sp = &empty;
+            success = TRUE;
+        }else{
+            // pop the valid spot and send out
+            success = MapPop(spots, sp, &index, sizeof(index));
+        }
     }
 
     LTRACE(logger, IDS_TRACE_EXIT, L"SendUpdateSpot()");
