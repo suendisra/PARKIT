@@ -10,6 +10,7 @@
 #include <util-dtm.h>
 #include <util-std.h>
 #include <util-str.h>
+#include <gph-grid.h>
 #include <win-std.h>
 #include "resource.h"
 
@@ -26,17 +27,24 @@
 #pragma comment(lib, "WIND.lib")
 #endif
 
-#define APP_COPYRIGHT   2025
-#define APP_LOG         L"parkit.log"
-#define APP_PATH        L"parkit.dat"
-#define APP_TITLE       L"PARKIT"
-#define APP_VERSION     L"0.2.7"
+#define APP_COPYRIGHT           2025
+#define APP_LOG                 L"parkit.log"
+#define APP_PATH                L"parkit.dat"
+#define APP_TITLE               L"PARKIT"
+#define APP_VERSION             L"0.2.7"
+
+#define SPOTID(level, row, col) ((level * 10000) + ((row + 1) * 100) + (col + 1))
+
+enum DRAWMODE
+{
+    DRAWMODE_INVAL = -1,
+    DRAWMODE_DEFAULT,
+    DRAWMODE_EDIT_SPOT,
+    DRAWMODE_LAST
+};
 
 typedef struct
 {
-    INDEX   midx;
-
-    ULONG   level;
     ULONG   spot;
 
     BOOL    empty;
@@ -47,6 +55,7 @@ typedef struct
 
     DATUM   reserve;
     DATUM   expires;
+    DATUM   updated;
 
     wchar_t vehicle[STR_SMALL];
 }SPOT;
@@ -61,11 +70,14 @@ struct
         wchar_t     user[STR_NORM]; // username to connect to database
     }db;
 
+    INDEX   level;
     BOOL    server;
     BOOL    showlegend;
 }app;
 
 WNDW    wnd;
+GRID    screen;
+MAP     spots;
 LOGGER  logger;
 
 /**
@@ -99,11 +111,18 @@ void GetTransactionID(ULONGLONG *transactID);
 
 /**
   @fn               void Input(const WORD key, const BOOL down)
-  @brief            handle user input
+  @brief            handle user keyboard input
   @param[in]        wp wparam to WM_KEYDOWN and WM_KEYUP messages
   @param[in]        keyisdown if handling WM_KEYDOWN message, this is true, otherwise FALSE
 */
-void Input(const WORD key, const BOOL down);
+void InputKey(const WORD key, const BOOL down);
+
+/**
+  @fn               void InputMouse(const WORD button, const LPARAM lp, const BOOL down)
+  @brief            handle user mouse input
+  @param[in]        mo the MOUSE struct containing mouse input conditions
+*/
+void InputMouse(const MOUSE mo);
 
 /**
   @fn               BOOL Interface(const BOOL start)
@@ -113,28 +132,11 @@ void Input(const WORD key, const BOOL down);
 BOOL Interface(const BOOL start);
 
 /**
-  @fn               BOOL Logic(const BOOL load)
-  @brief            start or stop application logic handling
-  @param[in]        load if true, start logic; if false, stop logic
-  @return           TRUE if successfully started/stopped; FALSE otherwise
-*/
-BOOL Logic(const BOOL load);
-
-/**
   @fn               BOOL Network(const BOOL start)
   @brief            initialize or tear down winsock
   @param[in]        start if TRUE, start winsock operations, FALSE otherwise
 */
 BOOL Network(const BOOL start);
-
-/**
-  @fn               BOOL SpotInfo(const INDEX index, const BOOL get, SPOT *spot)
-  @brief            get or set information for a given spot
-  @param[in]        index map index for the given spot to get/set
-  @param[in]        get if TRUE, retrieve spot information; if FALSE, set it
-  @return           TRUE if successfully got/set; FALSE otherwise
-*/
-BOOL SpotInfo(const INDEX index, const BOOL get, SPOT *spot);
 
 /**
   @fn               BOOL UpdateSpot(const SPOT spot)
