@@ -4,11 +4,12 @@
 */
 #include "parkit.h"
 #include <util-mem.h>
+#include <gph-grid.h>
 
 static KEYBOARD kb = {0};
 
-/* handle user input */
-void Input(const WORD key, const BOOL down)
+/* handle user keyboard input */
+void InputKey(const WORD key, const BOOL down)
 {
     BOOL    input = FALSE;
 
@@ -39,4 +40,20 @@ void Input(const WORD key, const BOOL down)
     }
 
     LTRACE(logger, IDS_TRACE_EXIT, L"Input()");
+}
+
+/* handle user mouse input */
+void InputMouse(const MOUSE mo)
+{
+    INDEX   idx = -1;
+
+    if((mo.click.x >= 0) && (mo.click.y >= 0))
+    {
+        idx = GridClick(screen, mo.click, NULL, NULL, NULL);
+        if((mo.up[MOUSE_LEFT] > 0) && (idx >= 0))
+        {
+            // clicked the grid, index obtained
+            // TODO
+        }
+    }
 }
