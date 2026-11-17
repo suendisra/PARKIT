@@ -13,7 +13,6 @@
 // static prototypes
 static void Defaults(void);
 static BOOL File(const BOOL load);
-static void Keys(const BOOL encrypt);
 static BOOL Logging(const BOOL load);
 static BOOL Start(void);
 static void Stop(void);
@@ -78,9 +77,9 @@ static BOOL File(const BOOL load)
             if(load)
             {
                 success = (FileRead(cf, &app, sizeof(app)) == sizeof(app));
-                Keys(FALSE);
+                Keys(FALSE, &app, sizeof(app));
             }else{
-                Keys(TRUE);
+                Keys(TRUE, &app, sizeof(app));
                 success = (FileWrite(cf, &app, sizeof(app)) == sizeof(app));
             }
 
@@ -93,7 +92,7 @@ static BOOL File(const BOOL load)
 }
 
 /* pull in all keys used to encrypt data on disk */
-static void Keys(const BOOL encrypt)
+void Keys(const BOOL encrypt, void *block, const long blocksz)
 {
     long    maxlines = 0;
     long    n = 0;
@@ -103,21 +102,24 @@ static void Keys(const BOOL encrypt)
 
     LTRACE(logger, IDS_TRACE_ENTER, L"Keys()");
 
-    // determine size of password file, allocate memory for its contents
-    ksz = (ResourceSize(RSC_TYPE_TXT, IDR_PARKIT_KEYS) * sizeof(wchar_t));
-    if(Mem(ksz, &keys))
+    if((block != NULL) && (blocksz > 0))
     {
-        // load it in
-        if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)))
+        // determine size of password file, allocate memory for its contents
+        ksz = (ResourceSize(RSC_TYPE_TXT, IDR_PARKIT_KEYS) * sizeof(wchar_t));
+        if(Mem(ksz, &keys))
         {
-            // text file containing data-at-rest passwords has been opened
-            maxlines = CharCount(keys, ksz, CHARLINE);
-            for(n = 0; (n < maxlines); ++n)
+            // load it in
+            if(Resource(RSC_TYPE_TXT, IDR_PARKIT_KEYS, keys, sizeof(keys)))
             {
-                // use each key to encrypt or decrypt the app data as appropriate
-                if(StrParse(temp, sizeof(temp), keys, sizeof(keys), PARSE_NEWLINE, (encrypt ? (n + 1) : (maxlines - n))))
+                // text file containing data-at-rest passwords has been opened
+                maxlines = CharCount(keys, ksz, CHARLINE);
+                for(n = 0; (n < maxlines); ++n)
                 {
-                    EncryptXOR(&app, sizeof(app), temp, StrLen(temp, sizeof(temp)));
+                    // use each key to encrypt or decrypt the app data as appropriate
+                    if(StrParse(temp, sizeof(temp), keys, sizeof(keys), PARSE_NEWLINE, (encrypt ? (n + 1) : (maxlines - n))))
+                    {
+                        EncryptXOR(block, blocksz, temp, StrLen(temp, sizeof(temp)));
+                    }
                 }
             }
         }

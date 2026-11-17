@@ -132,6 +132,15 @@ void InputMouse(const MOUSE mo);
 BOOL Interface(const BOOL start);
 
 /**
+  @fn               void Keys(const BOOL encrypt, void *block, const long blocksz)
+  @brief            pull in all keys used to encrypt data on disk
+  @param[in]        encrypt if TRUE, encrypt block with passwords from resource file; if FALSE, decrypt
+  @param[in out]    block data block to encrypt/decrypt
+  @param[in]        blocksz size of data block to encrypt/decrypt
+*/
+void Keys(const BOOL encrypt, void *block, const long blocksz);
+
+/**
   @fn               BOOL Network(const BOOL start)
   @brief            initialize or tear down winsock
   @param[in]        start if TRUE, start winsock operations, FALSE otherwise
