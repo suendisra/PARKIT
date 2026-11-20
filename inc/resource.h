@@ -3,11 +3,11 @@
 // Used by C:\PROJECTS\PARKIT\PARKIT.rc
 //
 #define IDI_PARKIT                      101
-#define IDD_SQL_CONFIG                  103
 #define IDD_CONFIG                      103
 #define IDR_PARKIT_KEYS                 104
 #define IDS_TRACE_ENTER                 110
 #define IDS_TRACE_EXIT                  111
+#define IDD_SPOT                        111
 #define IDC_INSTANCE                    1003
 #define IDC_CATALOG                     1004
 #define IDC_TABLE                       1005
@@ -26,7 +26,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        111
+#define _APS_NEXT_RESOURCE_VALUE        113
 #define _APS_NEXT_COMMAND_VALUE         40001
 #define _APS_NEXT_CONTROL_VALUE         1016
 #define _APS_NEXT_SYMED_VALUE           101
