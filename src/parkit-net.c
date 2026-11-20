@@ -65,7 +65,7 @@ static void NewClientAccepted(const NETIDX idx)
 {
     INDEX   eID = 0;
 
-    if((app.server) && (idx > 0))
+    if(app.server && (idx > 0))
     {
         // send client DB snapshot
         MapForEach(spots, NULL, NewClientSnapshot);
