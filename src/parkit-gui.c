@@ -3,6 +3,7 @@
   @brief    Source file for PARKIT application
 */
 #include "parkit.h"
+#include <util-mem.h>
 #include <gph-font.h>
 #include <gph-grid.h>
 #include <gph-shape.h>
@@ -11,9 +12,9 @@
 #define FONT_SIZE                   24
 
 #define INFO_COLS                   8
-#define INFO_CLIENT                 L"[L]EGEND| | | | | | | |"
+#define INFO_CLIENT                 L"[L]EGEND| |EMPTY: %02ld|RESERVED: %02ld|EXPIRED: %02ld| |CON[F]IG|CLIENT|"
 #define INFO_ROWS                   1
-#define INFO_SERVER                 L"[L]EGEND| | | | | | |DB(%ld)|"
+#define INFO_SERVER                 L"[L]EGEND| |EMPTY: %02ld|RESERVED: %02ld|EXPIRED: %02ld| |CON[F]IG|DB(%ld)|"
 
 #define RATIO_LEGEND                0.55    // divisional value for legend overlap display
 #define RATIO_SCREEN                0.96    // divisional value for main screen and info bar
@@ -31,6 +32,14 @@ static INDEX    font = -1;
 static CLRPOOL  scolor = {0};
 static long     coloroffset = 0;
 
+// some statistics to maintain
+static struct
+{
+    ULONG   empty;
+    ULONG   reserved;
+    ULONG   expired;
+}stats = {0};
+
 // static prototypes
 static void DrawInfo(void);
 static void DrawLegend(void);
@@ -43,13 +52,9 @@ void Draw(const HWND parent)
 
     if(GphPaint(gph, parent))
     {
-        DrawInfo();
         DrawScreen();
-
-        // if user has opted for it, or first time starting up (ever), show display
+        DrawInfo();
         DrawLegend();
-
-        // blit and display
         GphBlit(gph);
         GphPaint(gph, parent);
     }
@@ -68,15 +73,15 @@ static void DrawInfo(void)
     GphClear(gph, &info.dims, GCOAL);
     GphFontColor(gph, GGRAY, GTRANS);
 
+    // display appropriate text for informational bar
     if(app.server)
     {
-        StrFormat(temp, sizeof(temp), INFO_SERVER, app.server);
+        StrFormat(temp, sizeof(temp), INFO_SERVER, stats.empty, stats.reserved, stats.expired, app.server);
     }else{
-        StrFormat(temp, sizeof(temp), INFO_CLIENT);
+        StrFormat(temp, sizeof(temp), INFO_CLIENT, stats.empty, stats.reserved, stats.expired);
     }
-
     CharReplace(temp, sizeof(temp), CHARPIPE, CHARNULL);
-    GridList(info, NULL, (ALIGN_LEFT | ALIGN_VCENTER), temp);
+    GridList(info, NULL, ALIGN_CENTER2D, temp);
 
     LTRACE(logger, IDS_TRACE_EXIT, L"DrawInfo()");
 }
@@ -116,6 +121,11 @@ static BOOL DrawParkingSpot(const QUAD cell, const INDEX index, void *userdata)
         // retrieve information regarding this spot
         if(MapPop(spots, &spot, &spotID, sizeof(spotID)))
         {
+            // tally up statistics
+            stats.empty += spot.empty;
+            stats.reserved += spot.reserved;
+            stats.expired += spot.expired;
+
             // draw a border for this parking lot spot
             clridx = (spot.reserved ? coloroffset : 0);
             clridx += (spot.empty * 1);
@@ -150,6 +160,9 @@ static BOOL DrawParkingSpot(const QUAD cell, const INDEX index, void *userdata)
 static void DrawScreen(void)
 {
     LTRACE(logger, IDS_TRACE_ENTER, L"DrawScreen()");
+
+    // reset the statistics
+    MemClear(&stats, sizeof(stats));
 
     // clear the background and info bar
     GphClear(gph, &screen.dims, GBLACK);

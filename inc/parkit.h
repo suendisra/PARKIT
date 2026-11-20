@@ -35,14 +35,6 @@
 
 #define SPOTID(level, row, col) ((level * 10000) + ((row + 1) * 100) + (col + 1))
 
-enum DRAWMODE
-{
-    DRAWMODE_INVAL = -1,
-    DRAWMODE_DEFAULT,
-    DRAWMODE_EDIT_SPOT,
-    DRAWMODE_LAST
-};
-
 typedef struct
 {
     ULONG   spot;
